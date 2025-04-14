@@ -1,8 +1,6 @@
 module rainmcp
 
-go 1.23
-
-toolchain go1.23.0
+go 1.20
 
 require github.com/ThinkInAIXYZ/go-mcp v0.1.4
 

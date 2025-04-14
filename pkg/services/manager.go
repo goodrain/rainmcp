@@ -1,6 +1,7 @@
 package services
 
 import (
+	"log"
 	"rainmcp/pkg/api"
 	"rainmcp/pkg/services/apps"
 	"rainmcp/pkg/services/components"
@@ -21,33 +22,107 @@ type Manager struct {
 
 // NewManager 创建一个新的服务管理器
 func NewManager(apiURL, token string) *Manager {
+	log.Printf("[Manager] 创建新的服务管理器: apiURL=%s", apiURL)
+	
+	// 验证参数
+	if apiURL == "" {
+		log.Println("[Manager] 警告: Rainbond API URL为空")
+		apiURL = "https://rainbond-api.example.com" // 设置一个默认值以避免错误
+	}
+	
+	if token == "" {
+		log.Println("[Manager] 警告: Rainbond API访问令牌为空")
+	}
+	
+	log.Println("[Manager] 创建 API 客户端...")
 	client := api.NewClient(apiURL, token)
 	
-	return &Manager{
+	log.Println("[Manager] 初始化各个服务...")
+	manager := &Manager{
 		APIClient:      client,
 		TeamService:    teams.NewService(client),
 		RegionService:  regions.NewService(client),
 		AppService:     apps.NewService(client),
 		ComponentService: components.NewService(client),
 	}
+	
+	log.Println("[Manager] 服务管理器初始化完成")
+	return manager
 }
 
 // RegisterTeamTools 注册团队相关工具
 func RegisterTeamTools(mcpServer *server.Server, manager *Manager) {
+	log.Println("[Manager] 注册团队相关工具...")
+	
+	// 验证参数
+	if manager == nil {
+		log.Println("[Manager] 错误: 服务管理器为空")
+		return
+	}
+	
+	if manager.TeamService == nil {
+		log.Println("[Manager] 错误: 团队服务为空")
+		return
+	}
+	
 	teams.RegisterTools(mcpServer, manager.TeamService)
+	log.Println("[Manager] 团队相关工具注册完成")
 }
 
 // RegisterRegionTools 注册集群相关工具
 func RegisterRegionTools(mcpServer *server.Server, manager *Manager) {
+	log.Println("[Manager] 注册集群相关工具...")
+	
+	// 验证参数
+	if manager == nil {
+		log.Println("[Manager] 错误: 服务管理器为空")
+		return
+	}
+	
+	if manager.RegionService == nil {
+		log.Println("[Manager] 错误: 集群服务为空")
+		return
+	}
+	
+	log.Printf("[Manager] RegionService.client.BaseURL = %s", manager.RegionService.GetBaseURL())
 	regions.RegisterTools(mcpServer, manager.RegionService)
+	log.Println("[Manager] 集群相关工具注册完成")
 }
 
 // RegisterAppTools 注册应用相关工具
 func RegisterAppTools(mcpServer *server.Server, manager *Manager) {
+	log.Println("[Manager] 注册应用相关工具...")
+	
+	// 验证参数
+	if manager == nil {
+		log.Println("[Manager] 错误: 服务管理器为空")
+		return
+	}
+	
+	if manager.AppService == nil {
+		log.Println("[Manager] 错误: 应用服务为空")
+		return
+	}
+	
 	apps.RegisterTools(mcpServer, manager.AppService)
+	log.Println("[Manager] 应用相关工具注册完成")
 }
 
 // RegisterComponentTools 注册组件相关工具
 func RegisterComponentTools(mcpServer *server.Server, manager *Manager) {
+	log.Println("[Manager] 注册组件相关工具...")
+	
+	// 验证参数
+	if manager == nil {
+		log.Println("[Manager] 错误: 服务管理器为空")
+		return
+	}
+	
+	if manager.ComponentService == nil {
+		log.Println("[Manager] 错误: 组件服务为空")
+		return
+	}
+	
 	components.RegisterTools(mcpServer, manager.ComponentService)
+	log.Println("[Manager] 组件相关工具注册完成")
 }
