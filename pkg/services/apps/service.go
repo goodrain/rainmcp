@@ -6,6 +6,7 @@ import (
 	"rainmcp/pkg/api"
 	"rainmcp/pkg/models"
 	"rainmcp/pkg/utils"
+	"strings"
 
 	"github.com/ThinkInAIXYZ/go-mcp/protocol"
 	"github.com/ThinkInAIXYZ/go-mcp/server"
@@ -60,34 +61,125 @@ func (s *Service) handleAppsList(request *protocol.CallToolRequest) (*protocol.C
 	// 解析请求参数
 	req := new(models.AppsRequest)
 	if err := protocol.VerifyAndUnmarshal(request.RawArguments, req); err != nil {
+		// 记录原始错误
 		utils.Error("解析应用列表请求失败: %v", err)
-		return nil, fmt.Errorf("无效的应用列表请求: %v", err)
+
+		// 尝试解析原始请求数据
+		var rawData map[string]interface{}
+		var detailedErrMsg string
+		if jsonErr := json.Unmarshal(request.RawArguments, &rawData); jsonErr == nil {
+			// 检查必填字段
+			requiredFields := []string{"team_name", "region_name"}
+			var missingFields []string
+
+			for _, field := range requiredFields {
+				if _, exists := rawData[field]; !exists {
+					missingFields = append(missingFields, field)
+				}
+			}
+
+			// 构建详细错误信息
+			if len(missingFields) > 0 {
+				detailedErrMsg = fmt.Sprintf("缺少必填字段: %s", strings.Join(missingFields, ", "))
+			} else {
+				detailedErrMsg = fmt.Sprintf("请求参数验证失败: %v", err)
+			}
+		} else {
+			detailedErrMsg = fmt.Sprintf("解析JSON数据失败: %v", jsonErr)
+		}
+
+		// 返回带有详细错误信息的响应
+		return &protocol.CallToolResult{
+			Content: []protocol.Content{
+				protocol.TextContent{
+					Type: "text",
+					Text: detailedErrMsg,
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	// 参数校验
+	if req.TeamName == "" {
+		errMsg := "缺少必填字段: team_name"
+		utils.Error(errMsg)
+		return &protocol.CallToolResult{
+			Content: []protocol.Content{
+				protocol.TextContent{
+					Type: "text",
+					Text: errMsg,
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	if req.RegionName == "" {
+		errMsg := "缺少必填字段: region_name"
+		utils.Error(errMsg)
+		return &protocol.CallToolResult{
+			Content: []protocol.Content{
+				protocol.TextContent{
+					Type: "text",
+					Text: errMsg,
+				},
+			},
+			IsError: true,
+		}, nil
 	}
 
 	// 构建API路径 - 根据Rainbond OpenAPI文档
 	path := fmt.Sprintf("/openapi/v1/teams/%s/regions/%s/apps", req.TeamName, req.RegionName)
 
-	utils.Info("获取应用列表")
+	utils.Info("获取应用列表: %s", path)
 
 	// 调用Rainbond API获取应用列表
 	resp, err := s.client.Get(path)
 	if err != nil {
-		utils.Error("获取应用列表失败: %v", err)
-		return nil, fmt.Errorf("获取应用列表失败: %v", err)
+		errMsg := fmt.Sprintf("获取应用列表失败: %v", err)
+		utils.Error(errMsg)
+		return &protocol.CallToolResult{
+			Content: []protocol.Content{
+				protocol.TextContent{
+					Type: "text",
+					Text: errMsg,
+				},
+			},
+			IsError: true,
+		}, nil
 	}
 
 	// 直接使用原始响应
 	var result interface{}
 	if err := json.Unmarshal(resp, &result); err != nil {
-		utils.Error("解析应用列表响应失败: %v", err)
-		return nil, fmt.Errorf("解析应用列表失败: %v", err)
+		errMsg := fmt.Sprintf("解析应用列表响应失败: %v", err)
+		utils.Error(errMsg)
+		return &protocol.CallToolResult{
+			Content: []protocol.Content{
+				protocol.TextContent{
+					Type: "text",
+					Text: errMsg,
+				},
+			},
+			IsError: true,
+		}, nil
 	}
 
 	// 将结果转换为JSON字符串
 	resultJSON, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
-		utils.Error("序列化应用列表结果失败: %v", err)
-		return nil, fmt.Errorf("序列化应用列表失败: %v", err)
+		errMsg := fmt.Sprintf("序列化应用列表结果失败: %v", err)
+		utils.Error(errMsg)
+		return &protocol.CallToolResult{
+			Content: []protocol.Content{
+				protocol.TextContent{
+					Type: "text",
+					Text: errMsg,
+				},
+			},
+			IsError: true,
+		}, nil
 	}
 
 	// 返回结果
@@ -106,8 +198,86 @@ func (s *Service) handleCreateApp(request *protocol.CallToolRequest) (*protocol.
 	// 解析请求参数
 	req := new(models.CreateAppRequest)
 	if err := protocol.VerifyAndUnmarshal(request.RawArguments, req); err != nil {
+		// 记录原始错误
 		utils.Error("解析创建应用请求失败: %v", err)
-		return nil, fmt.Errorf("无效的创建应用请求: %v", err)
+
+		// 尝试解析原始请求数据
+		var rawData map[string]interface{}
+		var detailedErrMsg string
+		if jsonErr := json.Unmarshal(request.RawArguments, &rawData); jsonErr == nil {
+			// 检查必填字段
+			requiredFields := []string{"team_name", "region_name", "app_name"}
+			var missingFields []string
+
+			for _, field := range requiredFields {
+				if _, exists := rawData[field]; !exists {
+					missingFields = append(missingFields, field)
+				}
+			}
+
+			// 构建详细错误信息
+			if len(missingFields) > 0 {
+				detailedErrMsg = fmt.Sprintf("缺少必填字段: %s", strings.Join(missingFields, ", "))
+			} else {
+				detailedErrMsg = fmt.Sprintf("请求参数验证失败: %v", err)
+			}
+		} else {
+			detailedErrMsg = fmt.Sprintf("解析JSON数据失败: %v", jsonErr)
+		}
+
+		// 返回带有详细错误信息的响应
+		return &protocol.CallToolResult{
+			Content: []protocol.Content{
+				protocol.TextContent{
+					Type: "text",
+					Text: detailedErrMsg,
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	// 参数校验
+	if req.TeamName == "" {
+		errMsg := "缺少必填字段: team_name"
+		utils.Error(errMsg)
+		return &protocol.CallToolResult{
+			Content: []protocol.Content{
+				protocol.TextContent{
+					Type: "text",
+					Text: errMsg,
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	if req.RegionName == "" {
+		errMsg := "缺少必填字段: region_name"
+		utils.Error(errMsg)
+		return &protocol.CallToolResult{
+			Content: []protocol.Content{
+				protocol.TextContent{
+					Type: "text",
+					Text: errMsg,
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	if req.AppName == "" {
+		errMsg := "缺少必填字段: app_name"
+		utils.Error(errMsg)
+		return &protocol.CallToolResult{
+			Content: []protocol.Content{
+				protocol.TextContent{
+					Type: "text",
+					Text: errMsg,
+				},
+			},
+			IsError: true,
+		}, nil
 	}
 
 	// 构建API路径 - 根据Rainbond OpenAPI文档
@@ -118,22 +288,49 @@ func (s *Service) handleCreateApp(request *protocol.CallToolRequest) (*protocol.
 	// 调用Rainbond API创建应用
 	resp, err := s.client.Post(path, req)
 	if err != nil {
-		utils.Error("创建应用失败: %v", err)
-		return nil, fmt.Errorf("创建应用失败: %v", err)
+		errMsg := fmt.Sprintf("创建应用失败: %v", err)
+		utils.Error(errMsg)
+		return &protocol.CallToolResult{
+			Content: []protocol.Content{
+				protocol.TextContent{
+					Type: "text",
+					Text: errMsg,
+				},
+			},
+			IsError: true,
+		}, nil
 	}
 
 	// 解析响应
 	var result map[string]interface{}
 	if err := json.Unmarshal(resp, &result); err != nil {
-		utils.Error("解析创建应用响应失败: %v", err)
-		return nil, fmt.Errorf("解析创建应用响应失败: %v", err)
+		errMsg := fmt.Sprintf("解析创建应用响应失败: %v", err)
+		utils.Error(errMsg)
+		return &protocol.CallToolResult{
+			Content: []protocol.Content{
+				protocol.TextContent{
+					Type: "text",
+					Text: errMsg,
+				},
+			},
+			IsError: true,
+		}, nil
 	}
 
 	// 将结果转换为JSON字符串
 	resultJSON, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
-		utils.Error("序列化创建应用结果失败: %v", err)
-		return nil, fmt.Errorf("序列化创建应用结果失败: %v", err)
+		errMsg := fmt.Sprintf("序列化创建应用结果失败: %v", err)
+		utils.Error(errMsg)
+		return &protocol.CallToolResult{
+			Content: []protocol.Content{
+				protocol.TextContent{
+					Type: "text",
+					Text: errMsg,
+				},
+			},
+			IsError: true,
+		}, nil
 	}
 
 	// 返回结果

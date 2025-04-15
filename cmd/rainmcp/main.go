@@ -23,14 +23,14 @@ func init() {
 
 func main() {
 	log.Println("[启动] 开始启动Rainbond MCP服务器...")
-	
+
 	// 从环境变量获取配置
-	host := getEnv("RAINBOND_HOST", "localhost:8080")
+	host := getEnv("RAINBOND_HOST", "192.168.2.171:8080")
 	log.Printf("[配置] RAINBOND_HOST = %s", host)
-	
+
 	rainbondAPI := getEnv("RAINBOND_API", "https://rainbond-api.example.com")
 	log.Printf("[配置] RAINBOND_API = %s", rainbondAPI)
-	
+
 	rainbondToken := getEnv("RAINBOND_TOKEN", "")
 	tokenStatus := "未设置"
 	if rainbondToken != "" {
@@ -109,29 +109,29 @@ func main() {
 // 注册所有工具
 func registerTools(mcpServer *server.Server, serviceManager *services.Manager) {
 	log.Println("[工具] 开始注册各类工具...")
-	
+
 	// 检查服务管理器
 	if serviceManager == nil {
 		log.Println("[错误] 服务管理器为空，无法注册工具")
 		return
 	}
-	
+
 	// 注册团队相关工具
 	log.Println("[工具] 注册团队相关工具...")
 	services.RegisterTeamTools(mcpServer, serviceManager)
-	
+
 	// 注册集群相关工具
 	log.Println("[工具] 注册集群相关工具...")
 	services.RegisterRegionTools(mcpServer, serviceManager)
-	
+
 	// 注册应用相关工具
 	log.Println("[工具] 注册应用相关工具...")
 	services.RegisterAppTools(mcpServer, serviceManager)
-	
+
 	// 注册组件相关工具
 	log.Println("[工具] 注册组件相关工具...")
 	services.RegisterComponentTools(mcpServer, serviceManager)
-	
+
 	log.Println("[工具] 所有工具注册完成")
 }
 

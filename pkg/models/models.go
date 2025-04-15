@@ -108,29 +108,29 @@ type CreateAppResponse struct {
 
 // Component 表示Rainbond平台中的组件
 type Component struct {
-	ID              string    `json:"ID"`
-	ServiceAlias    string    `json:"service_alias"`
-	ServiceID       string    `json:"service_id"`
-	ServiceCName    string    `json:"service_cname"`
-	ServiceType     string    `json:"service_type"`
-	ServiceRegion   string    `json:"service_region"`
-	DeployVersion   string    `json:"deploy_version"`
-	Version         string    `json:"version"`
-	CreateTime      time.Time `json:"create_time"`
-	UpdateTime      time.Time `json:"update_time"`
-	CurStatus       string    `json:"cur_status"`
-	Status          string    `json:"status"`
-	ContainerMem    int       `json:"container_memory"`
-	ContainerCPU    int       `json:"container_cpu"`
-	Replicas        int       `json:"replicas"`
-	TeamID          string    `json:"tenant_id"`
-	TeamName        string    `json:"tenant_name"`
-	AppID           string    `json:"group_id"`
-	AppName         string    `json:"group_name"`
-	ServiceOrigin   string    `json:"service_origin"`
-	MemoryWarn      string    `json:"memory_warn"`
-	Image           string    `json:"image"`
-	K8sComponentID  string    `json:"k8s_component_id"`
+	ID             string    `json:"ID"`
+	ServiceAlias   string    `json:"service_alias"`
+	ServiceID      string    `json:"service_id"`
+	ServiceCName   string    `json:"service_cname"`
+	ServiceType    string    `json:"service_type"`
+	ServiceRegion  string    `json:"service_region"`
+	DeployVersion  string    `json:"deploy_version"`
+	Version        string    `json:"version"`
+	CreateTime     time.Time `json:"create_time"`
+	UpdateTime     time.Time `json:"update_time"`
+	CurStatus      string    `json:"cur_status"`
+	Status         string    `json:"status"`
+	ContainerMem   int       `json:"container_memory"`
+	ContainerCPU   int       `json:"container_cpu"`
+	Replicas       int       `json:"replicas"`
+	TeamID         string    `json:"tenant_id"`
+	TeamName       string    `json:"tenant_name"`
+	AppID          string    `json:"group_id"`
+	AppName        string    `json:"group_name"`
+	ServiceOrigin  string    `json:"service_origin"`
+	MemoryWarn     string    `json:"memory_warn"`
+	Image          string    `json:"image"`
+	K8sComponentID string    `json:"k8s_component_id"`
 }
 
 // ComponentDetailResponse 获取组件详情的响应
@@ -142,13 +142,11 @@ type ComponentDetailResponse struct {
 // CreateComponentRequest 创建组件的请求参数
 type CreateComponentRequest struct {
 	// 路径参数（不包含在请求体中）
-	TeamName   string `json:"team_name" description:"团队名称"`
-	RegionName string `json:"region_name" description:"集群名称"`
-	
-	// 请求体参数
+	TeamName         string `json:"team_name" description:"团队名称"`
+	RegionName       string `json:"region_name" description:"集群名称"`
 	GroupID          int    `json:"group_id" description:"应用ID"`
 	ServiceCName     string `json:"service_cname" description:"组件名称"`
-	K8sComponentName string `json:"k8s_component_name" description:"Kubernetes中的组件名称"`
+	K8sComponentName string `json:"k8s_component_name" description:"组件英文名称"`
 	Image            string `json:"image" description:"镜像地址"`
 	DockerCmd        string `json:"docker_cmd,omitempty" description:"启动命令"`
 	UserName         string `json:"user_name,omitempty" description:"镜像仓库用户名"`
@@ -164,4 +162,12 @@ type BuildComponentRequest struct {
 	ServiceID    string `json:"service_id" description:"组件ID"`
 	IsDeploy     bool   `json:"is_deploy" description:"是否部署"`
 	BuildVersion string `json:"build_version,omitempty" description:"构建版本"`
+}
+
+// ComponentDetailRequest 获取组件详情的请求参数
+type ComponentDetailRequest struct {
+	TeamName   string `json:"team_name" description:"团队名称"`
+	RegionName string `json:"region_name" description:"集群名称"`
+	AppID      string `json:"app_id" description:"应用ID"`
+	ServiceID  string `json:"service_id" description:"组件ID"`
 }
