@@ -139,8 +139,8 @@ type ComponentDetailResponse struct {
 	Data Component `json:"data"`
 }
 
-// CreateComponentRequest 创建组件的请求参数
-type CreateComponentRequest struct {
+// CreateImageComponentRequest 创建组件的请求参数
+type CreateImageComponentRequest struct {
 	// 路径参数（不包含在请求体中）
 	TeamName         string `json:"team_name" description:"团队名称"`
 	RegionName       string `json:"region_name" description:"集群名称"`
@@ -170,4 +170,56 @@ type ComponentDetailRequest struct {
 	RegionName string `json:"region_name" description:"集群名称"`
 	AppID      string `json:"app_id" description:"应用ID"`
 	ServiceID  string `json:"service_id" description:"组件ID"`
+}
+
+// ListComponentsRequest 获取应用下组件列表的请求参数
+type ListComponentsRequest struct {
+	TeamName   string `json:"team_name" description:"团队名称"`
+	RegionName string `json:"region_name" description:"集群名称"`
+	AppID      string `json:"app_id" description:"应用ID"`
+}
+
+// ComponentBaseInfo 组件基本信息
+type ComponentBaseInfo struct {
+	Status               string   `json:"status"`
+	AccessInfos          []string `json:"access_infos"`
+	ServiceID            string   `json:"service_id"`
+	TenantID             string   `json:"tenant_id"`
+	ServiceKey           string   `json:"service_key"`
+	ServiceAlias         string   `json:"service_alias"`
+	ServiceCName         string   `json:"service_cname"`
+	ServiceRegion        string   `json:"service_region"`
+	Desc                 string   `json:"desc"`
+	Category             string   `json:"category"`
+	Version              string   `json:"version"`
+	UpdateVersion        int      `json:"update_version"`
+	Image                string   `json:"image"`
+	Cmd                  string   `json:"cmd"`
+	MinNode              int      `json:"min_node"`
+	MinCPU               int      `json:"min_cpu"`
+	ContainerGPU         int      `json:"container_gpu"`
+	MinMemory            int      `json:"min_memory"`
+	ExtendMethod         string   `json:"extend_method"`
+	CodeFrom             string   `json:"code_from"`
+	GitURL               string   `json:"git_url"`
+	GitProjectID         int      `json:"git_project_id"`
+	CodeVersion          string   `json:"code_version"`
+	ServiceType          string   `json:"service_type"`
+	Creater              int      `json:"creater"`
+	Language             string   `json:"language"`
+	TotalMemory          int      `json:"total_memory"`
+	IsService            bool     `json:"is_service"`
+	ServiceOrigin        string   `json:"service_origin"`
+	TenantServiceGroupID int      `json:"tenant_service_group_id"`
+	OpenWebhooks         bool     `json:"open_webhooks"`
+	ServiceSource        string   `json:"service_source"`
+	CreateStatus         string   `json:"create_status"`
+	CheckUUID            string   `json:"check_uuid"`
+	CheckEventID         string   `json:"check_event_id"`
+	DockerCmd            string   `json:"docker_cmd"`
+	ServerType           string   `json:"server_type"`
+	IsUpgrate            bool     `json:"is_upgrate"`
+	BuildUpgrade         bool     `json:"build_upgrade"`
+	OauthServiceID       int      `json:"oauth_service_id"`
+	K8sComponentName     string   `json:"k8s_component_name"`
 }

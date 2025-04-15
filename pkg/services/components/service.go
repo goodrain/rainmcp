@@ -43,15 +43,15 @@ func RegisterTools(mcpServer *server.Server, service *Service) {
 
 	// 注册创建组件工具
 	createComponentTool, err := protocol.NewTool(
-		"rainbond_create_component",
-		"在Rainbond平台中创建组件",
-		models.CreateComponentRequest{},
+		"rainbond_create_image_component",
+		"在Rainbond平台中基于镜像创建组件",
+		models.CreateImageComponentRequest{},
 	)
 	if err != nil {
 		utils.Error("创建组件创建工具失败: %v", err)
 		return
 	}
-	mcpServer.RegisterTool(createComponentTool, service.handleCreateComponent)
+	mcpServer.RegisterTool(createComponentTool, service.handleCreateImageComponent)
 
 	// 注册构建组件工具
 	buildServiceTool, err := protocol.NewTool(
@@ -65,7 +65,171 @@ func RegisterTools(mcpServer *server.Server, service *Service) {
 	}
 	mcpServer.RegisterTool(buildServiceTool, service.handleBuildService)
 
+	// 注册获取应用下组件列表工具
+	listComponentsTool, err := protocol.NewTool(
+		"rainbond_list_components",
+		"获取Rainbond平台中应用下的组件列表",
+		models.ListComponentsRequest{},
+	)
+	if err != nil {
+		utils.Error("创建组件列表工具失败: %v", err)
+		return
+	}
+	mcpServer.RegisterTool(listComponentsTool, service.handleListComponents)
+
 	utils.Info("组件相关工具注册完成")
+}
+
+// handleListComponents 处理获取应用下组件列表的请求
+func (s *Service) handleListComponents(request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
+	// 解析请求参数
+	req := new(models.ListComponentsRequest)
+	if err := protocol.VerifyAndUnmarshal(request.RawArguments, req); err != nil {
+		// 记录原始错误
+		utils.Error("解析获取组件列表请求失败: %v", err)
+
+		// 尝试解析原始请求数据
+		var rawData map[string]interface{}
+		var detailedErrMsg string
+		if jsonErr := json.Unmarshal(request.RawArguments, &rawData); jsonErr == nil {
+			// 检查必填字段
+			requiredFields := []string{"team_name", "region_name", "app_id"}
+			var missingFields []string
+
+			for _, field := range requiredFields {
+				if _, exists := rawData[field]; !exists {
+					missingFields = append(missingFields, field)
+				}
+			}
+
+			// 构建详细错误信息
+			if len(missingFields) > 0 {
+				detailedErrMsg = fmt.Sprintf("缺少必填字段: %s", strings.Join(missingFields, ", "))
+			} else {
+				detailedErrMsg = fmt.Sprintf("请求参数验证失败: %v", err)
+			}
+		} else {
+			detailedErrMsg = fmt.Sprintf("解析JSON数据失败: %v", jsonErr)
+		}
+
+		// 返回带有详细错误信息的响应
+		return &protocol.CallToolResult{
+			Content: []protocol.Content{
+				protocol.TextContent{
+					Type: "text",
+					Text: detailedErrMsg,
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	// 参数校验
+	if req.TeamName == "" {
+		errMsg := "缺少必填字段: team_name"
+		utils.Error(errMsg)
+		return &protocol.CallToolResult{
+			Content: []protocol.Content{
+				protocol.TextContent{
+					Type: "text",
+					Text: errMsg,
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	if req.RegionName == "" {
+		errMsg := "缺少必填字段: region_name"
+		utils.Error(errMsg)
+		return &protocol.CallToolResult{
+			Content: []protocol.Content{
+				protocol.TextContent{
+					Type: "text",
+					Text: errMsg,
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	if req.AppID == "" {
+		errMsg := "缺少必填字段: app_id"
+		utils.Error(errMsg)
+		return &protocol.CallToolResult{
+			Content: []protocol.Content{
+				protocol.TextContent{
+					Type: "text",
+					Text: errMsg,
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	// 构建API路径 - 根据Rainbond OpenAPI文档
+	path := fmt.Sprintf("/openapi/v1/teams/%s/regions/%s/apps/%s/services",
+		req.TeamName, req.RegionName, req.AppID)
+
+	utils.Info("获取应用下组件列表: %s", path)
+
+	// 调用Rainbond API获取组件列表
+	resp, err := s.client.Get(path)
+	if err != nil {
+		errMsg := fmt.Sprintf("获取组件列表失败: %v", err)
+		utils.Error(errMsg)
+		return &protocol.CallToolResult{
+			Content: []protocol.Content{
+				protocol.TextContent{
+					Type: "text",
+					Text: errMsg,
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	// 解析响应
+	var components []models.ComponentBaseInfo
+	if err := json.Unmarshal(resp, &components); err != nil {
+		errMsg := fmt.Sprintf("解析组件列表响应失败: %v", err)
+		utils.Error(errMsg)
+		return &protocol.CallToolResult{
+			Content: []protocol.Content{
+				protocol.TextContent{
+					Type: "text",
+					Text: errMsg,
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	// 将结果转换为JSON字符串
+	resultJSON, err := json.MarshalIndent(components, "", "  ")
+	if err != nil {
+		errMsg := fmt.Sprintf("序列化组件列表结果失败: %v", err)
+		utils.Error(errMsg)
+		return &protocol.CallToolResult{
+			Content: []protocol.Content{
+				protocol.TextContent{
+					Type: "text",
+					Text: errMsg,
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	// 返回结果
+	return &protocol.CallToolResult{
+		Content: []protocol.Content{
+			protocol.TextContent{
+				Type: "text",
+				Text: string(resultJSON),
+			},
+		},
+	}, nil
 }
 
 // handleGetComponentDetail 处理获取组件详情的请求
@@ -234,13 +398,13 @@ func (s *Service) handleGetComponentDetail(request *protocol.CallToolRequest) (*
 	}, nil
 }
 
-// handleCreateComponent 处理创建组件的请求
-func (s *Service) handleCreateComponent(request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
+// handleCreateImageComponent 处理基于镜像创建组件的请求
+func (s *Service) handleCreateImageComponent(request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
 	// 解析请求参数
-	req := new(models.CreateComponentRequest)
+	req := new(models.CreateImageComponentRequest)
 	if err := protocol.VerifyAndUnmarshal(request.RawArguments, &req); err != nil {
 		// 记录原始错误
-		utils.Error("解析创建组件请求失败: %v", err)
+		utils.Error("解析基于镜像创建组件请求失败: %v", err)
 
 		// 尝试解析原始请求数据
 		var rawData map[string]interface{}
@@ -315,7 +479,7 @@ func (s *Service) handleCreateComponent(request *protocol.CallToolRequest) (*pro
 	if err != nil {
 		errMsg := fmt.Sprintf("创建组件失败: %v", err)
 		utils.Error(errMsg)
-		
+
 		// 返回错误响应
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
@@ -333,7 +497,7 @@ func (s *Service) handleCreateComponent(request *protocol.CallToolRequest) (*pro
 	if err := json.Unmarshal(resp, &result); err != nil {
 		errMsg := fmt.Sprintf("解析创建组件响应失败: %v", err)
 		utils.Error(errMsg)
-		
+
 		// 返回错误响应
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
@@ -351,7 +515,7 @@ func (s *Service) handleCreateComponent(request *protocol.CallToolRequest) (*pro
 	if err != nil {
 		errMsg := fmt.Sprintf("序列化创建组件结果失败: %v", err)
 		utils.Error(errMsg)
-		
+
 		// 返回错误响应
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
