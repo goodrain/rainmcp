@@ -1,8 +1,9 @@
 package utils
 
 import (
-	"log"
 	"os"
+
+	"github.com/sirupsen/logrus"
 )
 
 // LogLevel 日志级别
@@ -22,51 +23,31 @@ const (
 )
 
 var (
-	// 当前日志级别，默认为INFO
-	currentLevel = INFO
-	// 日志前缀
-	debugLogger = log.New(os.Stdout, "[DEBUG] ", log.Ldate|log.Ltime|log.Lshortfile)
-	infoLogger  = log.New(os.Stdout, "[INFO] ", log.Ldate|log.Ltime|log.Lshortfile)
-	warnLogger  = log.New(os.Stdout, "[WARN] ", log.Ldate|log.Ltime|log.Lshortfile)
-	errorLogger = log.New(os.Stdout, "[ERROR] ", log.Ldate|log.Ltime|log.Lshortfile)
-	fatalLogger = log.New(os.Stdout, "[FATAL] ", log.Ldate|log.Ltime|log.Lshortfile)
+	// 日志实例
+	logger = logrus.New()
 )
 
-// SetLogLevel 设置日志级别
-func SetLogLevel(level LogLevel) {
-	currentLevel = level
-}
+// init 初始化日志配置
+func init() {
+	// 设置日志格式
+	logger.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp:          true,
+		DisableLevelTruncation: true,
+		DisableColors:          false,
+		ForceColors:            true,
+		DisableQuote:           false,
+		QuoteEmptyFields:       true,
+		PadLevelText:           true,
+		FieldMap:               nil,
+		CallerPrettyfier:       nil,
+	})
 
-// Debug 输出调试级别日志
-func Debug(format string, v ...interface{}) {
-	if currentLevel <= DEBUG {
-		debugLogger.Printf(format, v...)
-	}
-}
+	// 设置输出
+	logger.SetOutput(os.Stdout)
 
-// Info 输出信息级别日志
-func Info(format string, v ...interface{}) {
-	if currentLevel <= INFO {
-		infoLogger.Printf(format, v...)
-	}
-}
+	// 设置日志级别
+	logger.SetLevel(logrus.InfoLevel)
 
-// Warn 输出警告级别日志
-func Warn(format string, v ...interface{}) {
-	if currentLevel <= WARN {
-		warnLogger.Printf(format, v...)
-	}
-}
-
-// Error 输出错误级别日志
-func Error(format string, v ...interface{}) {
-	if currentLevel <= ERROR {
-		errorLogger.Printf(format, v...)
-	}
-}
-
-// Fatal 输出致命错误级别日志并退出程序
-func Fatal(format string, v ...interface{}) {
-	fatalLogger.Printf(format, v...)
-	os.Exit(1)
+	// 显示调用位置
+	logger.SetReportCaller(true)
 }

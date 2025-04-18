@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"rainmcp/pkg/api"
+	"rainmcp/pkg/logger"
 	"rainmcp/pkg/models"
 	"rainmcp/pkg/utils"
 	"strings"
@@ -19,7 +20,7 @@ type Service struct {
 
 // NewService 创建一个新的应用服务
 func NewService(client *api.Client) *Service {
-	utils.Debug("创建新的应用服务")
+	logger.Debug("创建新的应用服务")
 	return &Service{
 		client: client,
 	}
@@ -27,8 +28,6 @@ func NewService(client *api.Client) *Service {
 
 // RegisterTools 注册应用相关的工具
 func RegisterTools(mcpServer *server.Server, service *Service) {
-	utils.Info("注册应用相关工具...")
-
 	// 注册获取应用列表工具
 	appsListTool, err := protocol.NewTool(
 		"rainbond_apps",
@@ -36,7 +35,7 @@ func RegisterTools(mcpServer *server.Server, service *Service) {
 		models.AppsRequest{},
 	)
 	if err != nil {
-		utils.Error("创建应用列表工具失败: %v", err)
+		logger.Error("创建应用列表工具失败: %v", err)
 		return
 	}
 	mcpServer.RegisterTool(appsListTool, service.handleAppsList)
@@ -48,12 +47,11 @@ func RegisterTools(mcpServer *server.Server, service *Service) {
 		models.CreateAppRequest{},
 	)
 	if err != nil {
-		utils.Error("创建应用创建工具失败: %v", err)
+		logger.Error("创建应用创建工具失败: %v", err)
 		return
 	}
 	mcpServer.RegisterTool(createAppTool, service.handleCreateApp)
 
-	utils.Info("应用相关工具注册完成")
 }
 
 // handleAppsList 处理获取应用列表的请求
@@ -62,14 +60,14 @@ func (s *Service) handleAppsList(request *protocol.CallToolRequest) (*protocol.C
 	req := new(models.AppsRequest)
 	if err := protocol.VerifyAndUnmarshal(request.RawArguments, req); err != nil {
 		// 记录原始错误
-		utils.Error("解析应用列表请求失败: %v", err)
+		logger.Error("解析应用列表请求失败: %v", err)
 
 		// 尝试解析原始请求数据
 		var rawData map[string]interface{}
 		var detailedErrMsg string
 		if jsonErr := json.Unmarshal(request.RawArguments, &rawData); jsonErr == nil {
 			// 检查必填字段
-			requiredFields := []string{"team_name", "region_name"}
+			requiredFields := []string{"tenant_name", "region_name"}
 			var missingFields []string
 
 			for _, field := range requiredFields {
@@ -102,8 +100,8 @@ func (s *Service) handleAppsList(request *protocol.CallToolRequest) (*protocol.C
 
 	// 参数校验
 	if req.TeamName == "" {
-		errMsg := "缺少必填字段: team_name"
-		utils.Error(errMsg)
+		errMsg := "缺少必填字段: tenant_name"
+		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
 				protocol.TextContent{
@@ -117,7 +115,7 @@ func (s *Service) handleAppsList(request *protocol.CallToolRequest) (*protocol.C
 
 	if req.RegionName == "" {
 		errMsg := "缺少必填字段: region_name"
-		utils.Error(errMsg)
+		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
 				protocol.TextContent{
@@ -132,13 +130,13 @@ func (s *Service) handleAppsList(request *protocol.CallToolRequest) (*protocol.C
 	// 构建API路径 - 根据Rainbond OpenAPI文档
 	path := fmt.Sprintf("/openapi/v1/teams/%s/regions/%s/apps", req.TeamName, req.RegionName)
 
-	utils.Info("获取应用列表: %s", path)
+	logger.Info("获取应用列表: %s", path)
 
 	// 调用Rainbond API获取应用列表
 	resp, err := s.client.Get(path)
 	if err != nil {
 		errMsg := fmt.Sprintf("获取应用列表失败: %v", err)
-		utils.Error(errMsg)
+		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
 				protocol.TextContent{
@@ -150,36 +148,53 @@ func (s *Service) handleAppsList(request *protocol.CallToolRequest) (*protocol.C
 		}, nil
 	}
 
-	// 直接使用原始响应
-	var result interface{}
-	if err := json.Unmarshal(resp, &result); err != nil {
-		errMsg := fmt.Sprintf("解析应用列表响应失败: %v", err)
-		utils.Error(errMsg)
+	// 使用AppsResponse结构体解析响应
+	var appsResp models.AppsResponse
+	logger.Debug("原始响应数据: %s", string(resp))
+	
+	if err := json.Unmarshal(resp, &appsResp); err != nil {
+		logger.Warn("解析应用列表响应失败: %v", err)
+		
+		// 如果解析失败，尝试解析为通用JSON
+		var result interface{}
+		if err := json.Unmarshal(resp, &result); err != nil {
+			errMsg := fmt.Sprintf("解析应用列表响应失败: %v", err)
+			logger.Error(errMsg)
+			return nil, fmt.Errorf("解析应用列表响应失败: %v", err)
+		}
+		
+		// 将结果转换为格式化的JSON字符串
+		resultJSON, err := json.MarshalIndent(result, "", "  ")
+		if err != nil {
+			logger.Error("格式化响应数据失败: %v", err)
+			// 如果格式化失败，直接返回原始数据
+			resultJSON = resp
+		}
+		
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
 				protocol.TextContent{
 					Type: "text",
-					Text: errMsg,
+					Text: string(resultJSON),
 				},
 			},
-			IsError: true,
 		}, nil
 	}
+	
+	// 成功解析为AppsResponse结构体
+	logger.Info("成功解析应用列表数据，共有 %d 个应用", len(appsResp.Data.List))
 
-	// 将结果转换为JSON字符串
-	resultJSON, err := json.MarshalIndent(result, "", "  ")
+	// 将结果转换为包含字段描述的JSON字符串
+	resultJSON, err := utils.MarshalJSONWithDescription(appsResp)
 	if err != nil {
-		errMsg := fmt.Sprintf("序列化应用列表结果失败: %v", err)
-		utils.Error(errMsg)
-		return &protocol.CallToolResult{
-			Content: []protocol.Content{
-				protocol.TextContent{
-					Type: "text",
-					Text: errMsg,
-				},
-			},
-			IsError: true,
-		}, nil
+		logger.Error("格式化响应数据失败: %v", err)
+		// 如果格式化失败，尝试使用标准JSON序列化
+		resultJSON, err = json.MarshalIndent(appsResp, "", "  ")
+		if err != nil {
+			logger.Error("标准JSON格式化也失败: %v", err)
+			// 如果标准格式化也失败，直接返回原始数据
+			resultJSON = resp
+		}
 	}
 
 	// 返回结果
@@ -199,7 +214,7 @@ func (s *Service) handleCreateApp(request *protocol.CallToolRequest) (*protocol.
 	req := new(models.CreateAppRequest)
 	if err := protocol.VerifyAndUnmarshal(request.RawArguments, req); err != nil {
 		// 记录原始错误
-		utils.Error("解析创建应用请求失败: %v", err)
+		logger.Error("解析创建应用请求失败: %v", err)
 
 		// 尝试解析原始请求数据
 		var rawData map[string]interface{}
@@ -240,7 +255,7 @@ func (s *Service) handleCreateApp(request *protocol.CallToolRequest) (*protocol.
 	// 参数校验
 	if req.TeamName == "" {
 		errMsg := "缺少必填字段: team_name"
-		utils.Error(errMsg)
+		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
 				protocol.TextContent{
@@ -254,7 +269,7 @@ func (s *Service) handleCreateApp(request *protocol.CallToolRequest) (*protocol.
 
 	if req.RegionName == "" {
 		errMsg := "缺少必填字段: region_name"
-		utils.Error(errMsg)
+		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
 				protocol.TextContent{
@@ -268,7 +283,7 @@ func (s *Service) handleCreateApp(request *protocol.CallToolRequest) (*protocol.
 
 	if req.AppName == "" {
 		errMsg := "缺少必填字段: app_name"
-		utils.Error(errMsg)
+		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
 				protocol.TextContent{
@@ -283,13 +298,13 @@ func (s *Service) handleCreateApp(request *protocol.CallToolRequest) (*protocol.
 	// 构建API路径 - 根据Rainbond OpenAPI文档
 	path := fmt.Sprintf("/openapi/v1/teams/%s/regions/%s/apps", req.TeamName, req.RegionName)
 
-	utils.Info("创建应用: %s, 应用名称: %s", path, req.AppName)
+	logger.Info("创建应用: %s, 应用名称: %s", path, req.AppName)
 
 	// 调用Rainbond API创建应用
 	resp, err := s.client.Post(path, req)
 	if err != nil {
 		errMsg := fmt.Sprintf("创建应用失败: %v", err)
-		utils.Error(errMsg)
+		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
 				protocol.TextContent{
@@ -305,7 +320,7 @@ func (s *Service) handleCreateApp(request *protocol.CallToolRequest) (*protocol.
 	var result map[string]interface{}
 	if err := json.Unmarshal(resp, &result); err != nil {
 		errMsg := fmt.Sprintf("解析创建应用响应失败: %v", err)
-		utils.Error(errMsg)
+		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
 				protocol.TextContent{
@@ -321,7 +336,7 @@ func (s *Service) handleCreateApp(request *protocol.CallToolRequest) (*protocol.
 	resultJSON, err := json.MarshalIndent(result, "", "  ")
 	if err != nil {
 		errMsg := fmt.Sprintf("序列化创建应用结果失败: %v", err)
-		utils.Error(errMsg)
+		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
 				protocol.TextContent{
