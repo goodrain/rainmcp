@@ -133,29 +133,47 @@ type CreateAppResponse struct {
 
 // ComponentDetailResponse 获取组件详情的响应
 type ComponentDetailResponse struct {
-	ID             string    `json:"ID"`
-	ServiceAlias   string    `json:"service_alias"`
-	ServiceID      string    `json:"service_id"`
-	ServiceCName   string    `json:"service_cname"`
-	ServiceType    string    `json:"service_type"`
-	ServiceRegion  string    `json:"service_region"`
-	DeployVersion  string    `json:"deploy_version"`
-	Version        string    `json:"version"`
-	CreateTime     time.Time `json:"create_time"`
-	UpdateTime     time.Time `json:"update_time"`
-	CurStatus      string    `json:"cur_status"`
-	Status         string    `json:"status"`
-	ContainerMem   int       `json:"container_memory"`
-	ContainerCPU   int       `json:"container_cpu"`
-	Replicas       int       `json:"replicas"`
-	TenantID       string    `json:"tenant_id"`
-	TeamName       string    `json:"tenant_name"`
-	AppID          string    `json:"group_id"`
-	AppName        string    `json:"group_name"`
-	ServiceOrigin  string    `json:"service_origin"`
-	MemoryWarn     string    `json:"memory_warn"`
-	Image          string    `json:"image"`
-	K8sComponentID string    `json:"k8s_component_id"`
+	// 基本信息
+	ServiceID     string `json:"service_id" description:"组件ID"`
+	TenantID      string `json:"tenant_id" description:"团队ID"`
+	ServiceAlias  string `json:"service_alias" description:"组件别名"`
+	ServiceCName  string `json:"service_cname" description:"组件中文名"`
+	ServiceRegion string `json:"service_region" description:"所属集群"`
+	Image         string `json:"image" description:"镜像"`
+	Cmd           string `json:"cmd" description:"启动命令"`
+	MinNode       int    `json:"min_node" description:"最小节点数"`
+	MinCPU        int    `json:"min_cpu" description:"CPU配额"`
+	ContainerGPU  int    `json:"container_gpu" description:"GPU配额"`
+	MinMemory     int    `json:"min_memory" description:"内存配额"`
+	ExtendMethod  string `json:"extend_method" description:"伸缩方式"`
+
+	// 源码相关字段
+	CodeFrom     string `json:"code_from" description:"源码来源"`
+	GitURL       string `json:"git_url" description:"Git仓库地址"`
+	GitProjectID int    `json:"git_project_id" description:"Git项目ID"`
+	CodeVersion  string `json:"code_version" description:"代码版本"`
+
+	// 状态相关字段
+	ServiceType          string        `json:"service_type" description:"服务类型"`
+	Creater              int           `json:"creater" description:"创建者ID"`
+	Language             interface{}   `json:"language" description:"编程语言"`
+	TotalMemory          int           `json:"total_memory" description:"总内存"`
+	IsService            bool          `json:"is_service" description:"是否为服务"`
+	ServiceOrigin        string        `json:"service_origin" description:"服务来源"`
+	TenantServiceGroupID int           `json:"tenant_service_group_id" description:"服务组ID"`
+	OpenWebhooks         bool          `json:"open_webhooks" description:"是否开启Webhooks"`
+	ServiceSource        string        `json:"service_source" description:"服务源类型，区分源码或镜像"`
+	CreateStatus         string        `json:"create_status" description:"创建状态"`
+	Status               string        `json:"status" description:"运行状态"`
+	AccessInfos          []interface{} `json:"access_infos" description:"访问信息"`
+
+	// Docker相关字段
+	DockerCmd  interface{} `json:"docker_cmd" description:"Docker命令"`
+	ServerType string      `json:"server_type" description:"服务器类型"`
+
+	// Kubernetes相关字段
+	K8sComponentName string `json:"k8s_component_name" description:"Kubernetes组件名称"`
+	Arch             string `json:"arch" description:"架构"`
 }
 
 // CreateImageComponentRequest 创建组件的请求参数

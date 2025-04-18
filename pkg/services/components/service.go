@@ -427,17 +427,98 @@ func (s *Service) handleGetComponentDetail(request *protocol.CallToolRequest) (*
 		}, nil
 	}
 
-	// 将结果转换为包含字段描述的JSON字符串
-	resultJSON, err := utils.MarshalJSONWithDescription(detailResp)
+	// 根据 service_source 字段区分展示源码组件和镜像组件的相关字段
+	var result map[string]interface{}
+
+	// 将组件详情转换为 map
+	detailJSON, err := json.Marshal(detailResp)
 	if err != nil {
-		logger.Error("带描述的格式化响应数据失败: %v", err)
-		// 如果格式化失败，尝试使用标准JSON序列化
-		resultJSON, err = json.MarshalIndent(detailResp, "", "  ")
-		if err != nil {
-			logger.Error("标准JSON格式化也失败: %v", err)
-			// 如果标准格式化也失败，直接返回原始数据
-			resultJSON = resp
+		logger.Error("序列化组件详情失败: %v", err)
+		return &protocol.CallToolResult{
+			Content: []protocol.Content{
+				protocol.TextContent{
+					Type: "text",
+					Text: fmt.Sprintf("序列化组件详情失败: %v", err),
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	if err := json.Unmarshal(detailJSON, &result); err != nil {
+		logger.Error("反序列化组件详情失败: %v", err)
+		return &protocol.CallToolResult{
+			Content: []protocol.Content{
+				protocol.TextContent{
+					Type: "text",
+					Text: fmt.Sprintf("反序列化组件详情失败: %v", err),
+				},
+			},
+			IsError: true,
+		}, nil
+	}
+
+	// 创建一个新的结果对象，包含基本字段
+	formattedResult := map[string]interface{}{
+		"基本信息": map[string]interface{}{
+			"组件ID":  result["service_id"],
+			"组件名称":  result["service_cname"],
+			"组件英文名": result["k8s_component_name"],
+			"所属集群":  result["service_region"],
+			"运行状态":  result["status"],
+			"内存配额":  fmt.Sprintf("%dMB", result["min_memory"]),
+			"CPU配额": fmt.Sprintf("%d毫核", result["min_cpu"]),
+			"伸缩方式":  result["extend_method"],
+		},
+	}
+
+	// 根据 service_source 字段添加不同的字段
+	serviceSource, _ := result["service_source"].(string)
+	if serviceSource == "source_code" {
+		// 源码组件特有字段
+		formattedResult["源码信息"] = map[string]interface{}{
+			"仓库地址": result["git_url"],
+			"分支版本": result["code_version"],
 		}
+	} else if serviceSource == "docker_image" {
+		// 镜像组件特有字段
+		formattedResult["镜像信息"] = map[string]interface{}{
+			"镜像地址":     result["image"],
+			"启动命令":     result["cmd"],
+			"Docker命令": result["docker_cmd"],
+		}
+	}
+
+	// 添加访问地址信息
+	accessInfos, ok := result["access_infos"].([]interface{})
+	if ok && len(accessInfos) > 0 {
+		addresses := make([]string, 0)
+		for _, info := range accessInfos {
+			if infoMap, ok := info.(map[string]interface{}); ok {
+				if address, exists := infoMap["access_url"].(string); exists && address != "" {
+					addresses = append(addresses, address)
+				}
+			}
+		}
+		
+		if len(addresses) > 0 {
+			formattedResult["访问信息"] = map[string]interface{}{
+				"访问地址": addresses,
+			}
+		}
+	}
+
+	// 添加其他通用信息
+	formattedResult["其他信息"] = map[string]interface{}{
+		"架构": result["arch"],
+	}
+
+	// 将格式化的结果转换为JSON
+	formattedJSON, err := json.MarshalIndent(formattedResult, "", "  ")
+	if err != nil {
+		logger.Error("格式化结果转换为JSON失败: %v", err)
+		// 如果格式化失败，尝试使用原始数据
+		formattedJSON, _ = json.MarshalIndent(detailResp, "", "  ")
 	}
 
 	// 返回结果
@@ -445,7 +526,7 @@ func (s *Service) handleGetComponentDetail(request *protocol.CallToolRequest) (*
 		Content: []protocol.Content{
 			protocol.TextContent{
 				Type: "text",
-				Text: string(resultJSON),
+				Text: string(formattedJSON),
 			},
 		},
 	}, nil
