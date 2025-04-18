@@ -36,7 +36,10 @@ type simpleFormatter struct {
 func (f *simpleFormatter) Format(entry *logrus.Entry) ([]byte, error) {
 	level := strings.ToUpper(entry.Level.String())
 	padding := "     "
-	level = level + padding[len(level):]
+	// 确保不会发生切片越界
+	if len(level) < len(padding) {
+		level = level + padding[len(level):]
+	}
 
 	timestamp := entry.Time.Format("2006-01-02 15:04:05")
 
