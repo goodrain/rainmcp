@@ -20,7 +20,7 @@ func main() {
 	logger.Info("[启动] 开始启动Rainbond MCP服务器...")
 
 	// 从环境变量获取配置
-	host := getEnv("RAINBOND_HOST", "127.0.0.1:8080")
+	host := getEnv("RAINBOND_HOST", "0.0.0.0:8080") // 使用0.0.0.0允许从任何IP访问，适合Docker环境
 	logger.Info("[配置] RAINBOND_HOST = %s", host)
 
 	rainbondAPI := getEnv("RAINBOND_API", "https://rainbond-api.example.com")

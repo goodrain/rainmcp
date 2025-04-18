@@ -42,4 +42,5 @@ ENV RAINBOND_API=https://rainbond-api.example.com
 ENV RAINBOND_TOKEN=""
 
 # 运行应用
-CMD ["./rainmcp"]
+# 添加调试输出
+ENTRYPOINT ["sh", "-c", "echo 'Starting Rainbond MCP Server...' && ./rainmcp"]
