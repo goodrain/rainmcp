@@ -26,20 +26,36 @@ type ClientTransport interface {
 	Send(ctx context.Context, msg Message) error
 
 	// SetReceiver sets the handler for messages from the peer
-	SetReceiver(receiver ClientReceiver)
+	SetReceiver(receiver clientReceiver)
 
 	// Close terminates the transport connection
 	Close() error
 }
 
-type ClientReceiver interface {
+type clientReceiver interface {
 	Receive(ctx context.Context, msg []byte) error
+	Interrupt(err error)
 }
 
-type ClientReceiverF func(ctx context.Context, msg []byte) error
+type ClientReceiver struct {
+	receive   func(ctx context.Context, msg []byte) error
+	interrupt func(err error)
+}
 
-func (f ClientReceiverF) Receive(ctx context.Context, msg []byte) error {
-	return f(ctx, msg)
+func (r *ClientReceiver) Receive(ctx context.Context, msg []byte) error {
+	return r.receive(ctx, msg)
+}
+
+func (r *ClientReceiver) Interrupt(err error) {
+	r.interrupt(err)
+}
+
+func NewClientReceiver(receive func(ctx context.Context, msg []byte) error, interrupt func(err error)) clientReceiver {
+	r := &ClientReceiver{
+		receive:   receive,
+		interrupt: interrupt,
+	}
+	return r
 }
 
 type ServerTransport interface {
@@ -50,9 +66,12 @@ type ServerTransport interface {
 	Send(ctx context.Context, sessionID string, msg Message) error
 
 	// SetReceiver sets the handler for messages from the peer
-	SetReceiver(ServerReceiver)
+	SetReceiver(serverReceiver)
 
-	// Shutdown gracefully closes, the internal implementation needs to stop receiving messages first, then wait for serverCtx to be canceled, while using userCtx to control timeout.
+	SetSessionManager(manager sessionManager)
+
+	// Shutdown gracefully closes, the internal implementation needs to stop receiving messages first,
+	// then wait for serverCtx to be canceled, while using userCtx to control timeout.
 	// userCtx is used to control the timeout of the server shutdown.
 	// serverCtx is used to coordinate the internal cleanup sequence:
 	// 1. turn off message listen
@@ -63,12 +82,21 @@ type ServerTransport interface {
 	Shutdown(userCtx context.Context, serverCtx context.Context) error
 }
 
-type ServerReceiver interface {
-	Receive(ctx context.Context, sessionID string, msg []byte) error
+type serverReceiver interface {
+	Receive(ctx context.Context, sessionID string, msg []byte) (<-chan []byte, error)
 }
 
-type ServerReceiverF func(ctx context.Context, sessionID string, msg []byte) error
+type ServerReceiverF func(ctx context.Context, sessionID string, msg []byte) (<-chan []byte, error)
 
-func (f ServerReceiverF) Receive(ctx context.Context, sessionID string, msg []byte) error {
+func (f ServerReceiverF) Receive(ctx context.Context, sessionID string, msg []byte) (<-chan []byte, error) {
 	return f(ctx, sessionID, msg)
+}
+
+type sessionManager interface {
+	CreateSession(context.Context) string
+	OpenMessageQueueForSend(sessionID string) error
+	EnqueueMessageForSend(ctx context.Context, sessionID string, message []byte) error
+	DequeueMessageForSend(ctx context.Context, sessionID string) ([]byte, error)
+	CloseSession(sessionID string)
+	CloseAllSessions()
 }

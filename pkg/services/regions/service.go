@@ -1,6 +1,7 @@
 package regions
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"rainmcp/pkg/api"
@@ -52,7 +53,7 @@ func RegisterTools(mcpServer *server.Server, service *Service) {
 }
 
 // handleRegionsList 处理获取集群列表的请求
-func (s *Service) handleRegionsList(request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
+func (s *Service) handleRegionsList(ctx context.Context, request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
 	logger.Info("获取集群列表")
 
 	// 检查API客户端是否正确初始化
@@ -81,7 +82,7 @@ func (s *Service) handleRegionsList(request *protocol.CallToolRequest) (*protoco
 	if err := json.Unmarshal(resp, &regionsResp); err != nil {
 		logger.Warn("解析集群列表响应失败: %v", err)
 		logger.Debug("原始响应数据: %s", string(resp))
-		
+
 		// 如果解析失败，尝试解析为通用JSON
 		var jsonData interface{}
 		if err := json.Unmarshal(resp, &jsonData); err != nil {
@@ -89,7 +90,7 @@ func (s *Service) handleRegionsList(request *protocol.CallToolRequest) (*protoco
 			// 如果不是JSON，直接返回原始字符串
 			jsonData = string(resp)
 		}
-		
+
 		// 将结果转换为格式化的JSON字符串
 		resultJSON, err := json.MarshalIndent(jsonData, "", "  ")
 		if err != nil {
@@ -97,17 +98,17 @@ func (s *Service) handleRegionsList(request *protocol.CallToolRequest) (*protoco
 			// 如果格式化失败，直接返回原始数据
 			resultJSON = resp
 		}
-		
+
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
-					Text: string(resultJSON),
+					Text: utils.FormatJSON(resultJSON),
 				},
 			},
 		}, nil
 	}
-	
+
 	// 成功解析为RegionsResponse结构体
 	var regionCount int
 	if len(regionsResp.Regions) > 0 {
@@ -135,9 +136,9 @@ func (s *Service) handleRegionsList(request *protocol.CallToolRequest) (*protoco
 	// 返回结果
 	return &protocol.CallToolResult{
 		Content: []protocol.Content{
-			protocol.TextContent{
+			&protocol.TextContent{
 				Type: "text",
-				Text: string(resultJSON),
+				Text: utils.FormatJSON(resultJSON),
 			},
 		},
 	}, nil

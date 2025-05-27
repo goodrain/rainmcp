@@ -1,6 +1,11 @@
 package protocol
 
-const Version = "2024-11-05"
+const Version = "2025-03-26"
+
+var SupportedVersion = map[string]struct{}{
+	"2024-11-05": {},
+	"2025-03-26": {},
+}
 
 // Method represents the JSON-RPC method name
 type Method string
@@ -46,7 +51,7 @@ const (
 
 	// progress related methods
 	NotificationProgress  Method = "notifications/progress"
-	NotificationCancelled Method = "notifications/cancelled"
+	NotificationCancelled Method = "notifications/cancelled" // nolint:misspell
 )
 
 // Role represents the sender or recipient of messages and data in a conversation

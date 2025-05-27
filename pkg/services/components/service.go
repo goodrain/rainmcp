@@ -1,6 +1,7 @@
 package components
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"rainmcp/pkg/api"
@@ -138,7 +139,7 @@ func RegisterTools(mcpServer *server.Server, service *Service) {
 }
 
 // handleListComponents 处理获取应用下组件列表的请求
-func (s *Service) handleListComponents(request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
+func (service *Service) handleListComponents(ctx context.Context, request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
 	// 解析请求参数
 	req := new(models.ListComponentsRequest)
 	if err := protocol.VerifyAndUnmarshal(request.RawArguments, req); err != nil {
@@ -172,7 +173,7 @@ func (s *Service) handleListComponents(request *protocol.CallToolRequest) (*prot
 		// 返回带有详细错误信息的响应
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: detailedErrMsg,
 				},
@@ -187,7 +188,7 @@ func (s *Service) handleListComponents(request *protocol.CallToolRequest) (*prot
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: errMsg,
 				},
@@ -201,7 +202,7 @@ func (s *Service) handleListComponents(request *protocol.CallToolRequest) (*prot
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: errMsg,
 				},
@@ -215,7 +216,7 @@ func (s *Service) handleListComponents(request *protocol.CallToolRequest) (*prot
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: errMsg,
 				},
@@ -231,13 +232,13 @@ func (s *Service) handleListComponents(request *protocol.CallToolRequest) (*prot
 	logger.Info("获取应用下组件列表: %s", path)
 
 	// 调用Rainbond API获取组件列表
-	resp, err := s.client.Get(path)
+	resp, err := service.client.Get(path)
 	if err != nil {
 		errMsg := fmt.Sprintf("获取组件列表失败: %v", err)
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: errMsg,
 				},
@@ -253,23 +254,7 @@ func (s *Service) handleListComponents(request *protocol.CallToolRequest) (*prot
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
-					Type: "text",
-					Text: errMsg,
-				},
-			},
-			IsError: true,
-		}, nil
-	}
-
-	// 将结果转换为JSON字符串
-	resultJSON, err := json.MarshalIndent(components, "", "  ")
-	if err != nil {
-		errMsg := fmt.Sprintf("序列化组件列表结果失败: %v", err)
-		logger.Error(errMsg)
-		return &protocol.CallToolResult{
-			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: errMsg,
 				},
@@ -281,16 +266,16 @@ func (s *Service) handleListComponents(request *protocol.CallToolRequest) (*prot
 	// 返回结果
 	return &protocol.CallToolResult{
 		Content: []protocol.Content{
-			protocol.TextContent{
+			&protocol.TextContent{
 				Type: "text",
-				Text: string(resultJSON),
+				Text: utils.FormatJSON(components),
 			},
 		},
 	}, nil
 }
 
 // handleGetComponentDetail 处理获取组件详情的请求
-func (s *Service) handleGetComponentDetail(request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
+func (service *Service) handleGetComponentDetail(ctx context.Context, request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
 	// 解析请求参数
 	req := new(models.ComponentDetailRequest)
 	if err := protocol.VerifyAndUnmarshal(request.RawArguments, req); err != nil {
@@ -324,7 +309,7 @@ func (s *Service) handleGetComponentDetail(request *protocol.CallToolRequest) (*
 		// 返回带有详细错误信息的响应
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: detailedErrMsg,
 				},
@@ -339,7 +324,7 @@ func (s *Service) handleGetComponentDetail(request *protocol.CallToolRequest) (*
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: errMsg,
 				},
@@ -353,7 +338,7 @@ func (s *Service) handleGetComponentDetail(request *protocol.CallToolRequest) (*
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: errMsg,
 				},
@@ -367,7 +352,7 @@ func (s *Service) handleGetComponentDetail(request *protocol.CallToolRequest) (*
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: errMsg,
 				},
@@ -381,7 +366,7 @@ func (s *Service) handleGetComponentDetail(request *protocol.CallToolRequest) (*
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: errMsg,
 				},
@@ -397,13 +382,13 @@ func (s *Service) handleGetComponentDetail(request *protocol.CallToolRequest) (*
 	logger.Info("获取组件详情: %s", path)
 
 	// 调用Rainbond API获取组件详情
-	resp, err := s.client.Get(path)
+	resp, err := service.client.Get(path)
 	if err != nil {
 		errMsg := fmt.Sprintf("获取组件详情失败: %v", err)
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: errMsg,
 				},
@@ -419,7 +404,7 @@ func (s *Service) handleGetComponentDetail(request *protocol.CallToolRequest) (*
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: errMsg,
 				},
@@ -436,7 +421,7 @@ func (s *Service) handleGetComponentDetail(request *protocol.CallToolRequest) (*
 		logger.Error("序列化组件详情失败: %v", err)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: fmt.Sprintf("序列化组件详情失败: %v", err),
 				},
@@ -449,7 +434,7 @@ func (s *Service) handleGetComponentDetail(request *protocol.CallToolRequest) (*
 		logger.Error("反序列化组件详情失败: %v", err)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: fmt.Sprintf("反序列化组件详情失败: %v", err),
 				},
@@ -500,7 +485,7 @@ func (s *Service) handleGetComponentDetail(request *protocol.CallToolRequest) (*
 				}
 			}
 		}
-		
+
 		if len(addresses) > 0 {
 			formattedResult["访问信息"] = map[string]interface{}{
 				"访问地址": addresses,
@@ -524,7 +509,7 @@ func (s *Service) handleGetComponentDetail(request *protocol.CallToolRequest) (*
 	// 返回结果
 	return &protocol.CallToolResult{
 		Content: []protocol.Content{
-			protocol.TextContent{
+			&protocol.TextContent{
 				Type: "text",
 				Text: string(formattedJSON),
 			},
@@ -533,7 +518,7 @@ func (s *Service) handleGetComponentDetail(request *protocol.CallToolRequest) (*
 }
 
 // handleCreateImageComponent 处理基于镜像创建组件的请求
-func (s *Service) handleCreateImageComponent(request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
+func (service *Service) handleCreateImageComponent(ctx context.Context, request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
 	// 解析请求参数
 	req := new(models.CreateImageComponentRequest)
 	if err := protocol.VerifyAndUnmarshal(request.RawArguments, req); err != nil {
@@ -593,7 +578,7 @@ func (s *Service) handleCreateImageComponent(request *protocol.CallToolRequest) 
 		// 返回带有详细错误信息的响应
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: detailedErrMsg,
 				},
@@ -630,7 +615,7 @@ func (s *Service) handleCreateImageComponent(request *protocol.CallToolRequest) 
 	}
 
 	// 调用Rainbond API创建组件
-	resp, err := s.client.Post(path, requestData)
+	resp, err := service.client.Post(path, requestData)
 	if err != nil {
 		errMsg := fmt.Sprintf("创建组件失败: %v", err)
 		logger.Error(errMsg)
@@ -638,7 +623,7 @@ func (s *Service) handleCreateImageComponent(request *protocol.CallToolRequest) 
 		// 返回错误响应
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: errMsg,
 				},
@@ -656,7 +641,7 @@ func (s *Service) handleCreateImageComponent(request *protocol.CallToolRequest) 
 		// 返回错误响应
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: errMsg,
 				},
@@ -676,7 +661,7 @@ func (s *Service) handleCreateImageComponent(request *protocol.CallToolRequest) 
 	// 返回结果
 	return &protocol.CallToolResult{
 		Content: []protocol.Content{
-			protocol.TextContent{
+			&protocol.TextContent{
 				Type: "text",
 				Text: string(resultJSON),
 			},
@@ -685,7 +670,7 @@ func (s *Service) handleCreateImageComponent(request *protocol.CallToolRequest) 
 }
 
 // handleCreateCodeComponent 处理基于源码创建组件的请求
-func (s *Service) handleCreateCodeComponent(request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
+func (service *Service) handleCreateCodeComponent(ctx context.Context, request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
 	// 解析请求参数
 	req := new(models.CreateCodeComponentRequest)
 	if err := protocol.VerifyAndUnmarshal(request.RawArguments, req); err != nil {
@@ -719,7 +704,7 @@ func (s *Service) handleCreateCodeComponent(request *protocol.CallToolRequest) (
 		// 返回带有详细错误信息的响应
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: detailedErrMsg,
 				},
@@ -755,7 +740,7 @@ func (s *Service) handleCreateCodeComponent(request *protocol.CallToolRequest) (
 	requestData["is_deploy"] = true
 
 	// 调用Rainbond API创建组件
-	resp, err := s.client.Post(path, requestData)
+	resp, err := service.client.Post(path, requestData)
 	if err != nil {
 		errMsg := fmt.Sprintf("创建组件失败: %v", err)
 		logger.Error(errMsg)
@@ -763,7 +748,7 @@ func (s *Service) handleCreateCodeComponent(request *protocol.CallToolRequest) (
 		// 返回错误响应
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: errMsg,
 				},
@@ -781,7 +766,7 @@ func (s *Service) handleCreateCodeComponent(request *protocol.CallToolRequest) (
 		// 返回错误响应
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: errMsg,
 				},
@@ -801,7 +786,7 @@ func (s *Service) handleCreateCodeComponent(request *protocol.CallToolRequest) (
 	// 返回结果
 	return &protocol.CallToolResult{
 		Content: []protocol.Content{
-			protocol.TextContent{
+			&protocol.TextContent{
 				Type: "text",
 				Text: string(resultJSON),
 			},
@@ -810,7 +795,7 @@ func (s *Service) handleCreateCodeComponent(request *protocol.CallToolRequest) (
 }
 
 // handleListComponentPorts 处理获取组件端口列表的请求
-func (s *Service) handleListComponentPorts(request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
+func (service *Service) handleListComponentPorts(ctx context.Context, request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
 	// 解析请求参数
 	req := new(models.ListPortsRequest)
 	if err := protocol.VerifyAndUnmarshal(request.RawArguments, req); err != nil {
@@ -823,7 +808,7 @@ func (s *Service) handleListComponentPorts(request *protocol.CallToolRequest) (*
 		req.TenantID, req.RegionName, req.AppID, req.ServiceID)
 
 	// 发送请求
-	resp, err := s.client.Get(apiPath)
+	resp, err := service.client.Get(apiPath)
 	if err != nil {
 		errMsg := fmt.Sprintf("获取组件端口列表失败: %v", err)
 		logger.Error(errMsg)
@@ -831,7 +816,7 @@ func (s *Service) handleListComponentPorts(request *protocol.CallToolRequest) (*
 		// 返回错误响应
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: errMsg,
 				},
@@ -855,7 +840,7 @@ func (s *Service) handleListComponentPorts(request *protocol.CallToolRequest) (*
 			logger.Error(errMsg)
 			return &protocol.CallToolResult{
 				Content: []protocol.Content{
-					protocol.TextContent{
+					&protocol.TextContent{
 						Type: "text",
 						Text: errMsg,
 					},
@@ -874,7 +859,7 @@ func (s *Service) handleListComponentPorts(request *protocol.CallToolRequest) (*
 
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: string(resultJSON),
 				},
@@ -901,7 +886,7 @@ func (s *Service) handleListComponentPorts(request *protocol.CallToolRequest) (*
 	// 返回结果
 	return &protocol.CallToolResult{
 		Content: []protocol.Content{
-			protocol.TextContent{
+			&protocol.TextContent{
 				Type: "text",
 				Text: string(resultJSON),
 			},
@@ -910,7 +895,7 @@ func (s *Service) handleListComponentPorts(request *protocol.CallToolRequest) (*
 }
 
 // handleAddComponentPort 处理添加组件端口的请求
-func (s *Service) handleAddComponentPort(request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
+func (service *Service) handleAddComponentPort(ctx context.Context, request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
 	// 解析请求参数
 	req := new(models.AddPortRequest)
 	if err := protocol.VerifyAndUnmarshal(request.RawArguments, req); err != nil {
@@ -928,7 +913,7 @@ func (s *Service) handleAddComponentPort(request *protocol.CallToolRequest) (*pr
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: errMsg,
 				},
@@ -946,7 +931,7 @@ func (s *Service) handleAddComponentPort(request *protocol.CallToolRequest) (*pr
 	}
 
 	// 发送请求
-	resp, err := s.client.Post(apiPath, requestBody)
+	resp, err := service.client.Post(apiPath, requestBody)
 	if err != nil {
 		errMsg := fmt.Sprintf("添加组件端口失败: %v", err)
 		logger.Error(errMsg)
@@ -954,7 +939,7 @@ func (s *Service) handleAddComponentPort(request *protocol.CallToolRequest) (*pr
 		// 返回错误响应
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: errMsg,
 				},
@@ -978,7 +963,7 @@ func (s *Service) handleAddComponentPort(request *protocol.CallToolRequest) (*pr
 			logger.Error(errMsg)
 			return &protocol.CallToolResult{
 				Content: []protocol.Content{
-					protocol.TextContent{
+					&protocol.TextContent{
 						Type: "text",
 						Text: errMsg,
 					},
@@ -997,7 +982,7 @@ func (s *Service) handleAddComponentPort(request *protocol.CallToolRequest) (*pr
 
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: string(resultJSON),
 				},
@@ -1024,7 +1009,7 @@ func (s *Service) handleAddComponentPort(request *protocol.CallToolRequest) (*pr
 	// 返回结果
 	return &protocol.CallToolResult{
 		Content: []protocol.Content{
-			protocol.TextContent{
+			&protocol.TextContent{
 				Type: "text",
 				Text: string(resultJSON),
 			},
@@ -1033,7 +1018,7 @@ func (s *Service) handleAddComponentPort(request *protocol.CallToolRequest) (*pr
 }
 
 // handleUpdateComponentPort 处理更新组件端口的请求
-func (s *Service) handleUpdateComponentPort(request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
+func (service *Service) handleUpdateComponentPort(ctx context.Context, request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
 	// 解析请求参数
 	req := new(models.UpdatePortRequest)
 	if err := protocol.VerifyAndUnmarshal(request.RawArguments, req); err != nil {
@@ -1061,7 +1046,7 @@ func (s *Service) handleUpdateComponentPort(request *protocol.CallToolRequest) (
 			logger.Error(errMsg)
 			return &protocol.CallToolResult{
 				Content: []protocol.Content{
-					protocol.TextContent{
+					&protocol.TextContent{
 						Type: "text",
 						Text: errMsg,
 					},
@@ -1076,7 +1061,7 @@ func (s *Service) handleUpdateComponentPort(request *protocol.CallToolRequest) (
 			logger.Error(errMsg)
 			return &protocol.CallToolResult{
 				Content: []protocol.Content{
-					protocol.TextContent{
+					&protocol.TextContent{
 						Type: "text",
 						Text: errMsg,
 					},
@@ -1092,7 +1077,7 @@ func (s *Service) handleUpdateComponentPort(request *protocol.CallToolRequest) (
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: errMsg,
 				},
@@ -1102,7 +1087,7 @@ func (s *Service) handleUpdateComponentPort(request *protocol.CallToolRequest) (
 	}
 
 	// 发送请求
-	resp, err := s.client.Put(apiPath, requestBody)
+	resp, err := service.client.Put(apiPath, requestBody)
 	if err != nil {
 		errMsg := fmt.Sprintf("更新组件端口失败: %v", err)
 		logger.Error(errMsg)
@@ -1110,7 +1095,7 @@ func (s *Service) handleUpdateComponentPort(request *protocol.CallToolRequest) (
 		// 返回错误响应
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: errMsg,
 				},
@@ -1134,7 +1119,7 @@ func (s *Service) handleUpdateComponentPort(request *protocol.CallToolRequest) (
 			logger.Error(errMsg)
 			return &protocol.CallToolResult{
 				Content: []protocol.Content{
-					protocol.TextContent{
+					&protocol.TextContent{
 						Type: "text",
 						Text: errMsg,
 					},
@@ -1153,7 +1138,7 @@ func (s *Service) handleUpdateComponentPort(request *protocol.CallToolRequest) (
 
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: string(resultJSON),
 				},
@@ -1180,7 +1165,7 @@ func (s *Service) handleUpdateComponentPort(request *protocol.CallToolRequest) (
 	// 返回结果
 	return &protocol.CallToolResult{
 		Content: []protocol.Content{
-			protocol.TextContent{
+			&protocol.TextContent{
 				Type: "text",
 				Text: string(resultJSON),
 			},
@@ -1189,7 +1174,7 @@ func (s *Service) handleUpdateComponentPort(request *protocol.CallToolRequest) (
 }
 
 // handleDeleteComponentPort 处理删除组件端口的请求
-func (s *Service) handleDeleteComponentPort(request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
+func (service *Service) handleDeleteComponentPort(ctx context.Context, request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
 	// 解析请求参数
 	req := new(models.DeletePortRequest)
 	if err := protocol.VerifyAndUnmarshal(request.RawArguments, req); err != nil {
@@ -1202,7 +1187,7 @@ func (s *Service) handleDeleteComponentPort(request *protocol.CallToolRequest) (
 		req.TenantID, req.RegionName, req.AppID, req.ServiceID, req.Port)
 
 	// 发送请求
-	resp, err := s.client.Delete(apiPath)
+	resp, err := service.client.Delete(apiPath)
 	if err != nil {
 		errMsg := fmt.Sprintf("删除组件端口失败: %v", err)
 		logger.Error(errMsg)
@@ -1210,7 +1195,7 @@ func (s *Service) handleDeleteComponentPort(request *protocol.CallToolRequest) (
 		// 返回错误响应
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: errMsg,
 				},
@@ -1229,7 +1214,7 @@ func (s *Service) handleDeleteComponentPort(request *protocol.CallToolRequest) (
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: errMsg,
 				},
@@ -1251,7 +1236,7 @@ func (s *Service) handleDeleteComponentPort(request *protocol.CallToolRequest) (
 	// 返回结果
 	return &protocol.CallToolResult{
 		Content: []protocol.Content{
-			protocol.TextContent{
+			&protocol.TextContent{
 				Type: "text",
 				Text: string(resultJSON),
 			},
@@ -1260,7 +1245,7 @@ func (s *Service) handleDeleteComponentPort(request *protocol.CallToolRequest) (
 }
 
 // handleBuildService 处理构建组件的请求
-func (s *Service) handleBuildService(request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
+func (service *Service) handleBuildService(ctx context.Context, request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
 	// 解析请求参数
 	req := new(models.BuildComponentRequest)
 	if err := protocol.VerifyAndUnmarshal(request.RawArguments, req); err != nil {
@@ -1286,7 +1271,7 @@ func (s *Service) handleBuildService(request *protocol.CallToolRequest) (*protoc
 	}
 
 	// 调用Rainbond API构建组件
-	resp, err := s.client.Post(path, buildParams)
+	resp, err := service.client.Post(path, buildParams)
 	if err != nil {
 		logger.Error("构建组件失败: %v", err)
 		return nil, fmt.Errorf("构建组件失败: %v", err)
@@ -1309,7 +1294,7 @@ func (s *Service) handleBuildService(request *protocol.CallToolRequest) (*protoc
 	// 返回结果
 	return &protocol.CallToolResult{
 		Content: []protocol.Content{
-			protocol.TextContent{
+			&protocol.TextContent{
 				Type: "text",
 				Text: string(resultJSON),
 			},

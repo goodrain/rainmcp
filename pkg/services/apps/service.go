@@ -1,6 +1,7 @@
 package apps
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"rainmcp/pkg/api"
@@ -55,7 +56,7 @@ func RegisterTools(mcpServer *server.Server, service *Service) {
 }
 
 // handleAppsList 处理获取应用列表的请求
-func (s *Service) handleAppsList(request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
+func (service *Service) handleAppsList(ctx context.Context, request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
 	// 解析请求参数
 	req := new(models.AppsRequest)
 	if err := protocol.VerifyAndUnmarshal(request.RawArguments, req); err != nil {
@@ -89,8 +90,7 @@ func (s *Service) handleAppsList(request *protocol.CallToolRequest) (*protocol.C
 		// 返回带有详细错误信息的响应
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
-					Type: "text",
+				&protocol.TextContent{
 					Text: detailedErrMsg,
 				},
 			},
@@ -104,8 +104,7 @@ func (s *Service) handleAppsList(request *protocol.CallToolRequest) (*protocol.C
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
-					Type: "text",
+				&protocol.TextContent{
 					Text: errMsg,
 				},
 			},
@@ -118,8 +117,7 @@ func (s *Service) handleAppsList(request *protocol.CallToolRequest) (*protocol.C
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
-					Type: "text",
+				&protocol.TextContent{
 					Text: errMsg,
 				},
 			},
@@ -133,14 +131,13 @@ func (s *Service) handleAppsList(request *protocol.CallToolRequest) (*protocol.C
 	logger.Info("获取应用列表: %s", path)
 
 	// 调用Rainbond API获取应用列表
-	resp, err := s.client.Get(path)
+	resp, err := service.client.Get(path)
 	if err != nil {
 		errMsg := fmt.Sprintf("获取应用列表失败: %v", err)
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
-					Type: "text",
+				&protocol.TextContent{
 					Text: errMsg,
 				},
 			},
@@ -151,10 +148,10 @@ func (s *Service) handleAppsList(request *protocol.CallToolRequest) (*protocol.C
 	// 使用AppsResponse结构体解析响应
 	var appsResp models.AppsResponse
 	logger.Debug("原始响应数据: %s", string(resp))
-	
+
 	if err := json.Unmarshal(resp, &appsResp); err != nil {
 		logger.Warn("解析应用列表响应失败: %v", err)
-		
+
 		// 如果解析失败，尝试解析为通用JSON
 		var result interface{}
 		if err := json.Unmarshal(resp, &result); err != nil {
@@ -162,7 +159,7 @@ func (s *Service) handleAppsList(request *protocol.CallToolRequest) (*protocol.C
 			logger.Error(errMsg)
 			return nil, fmt.Errorf("解析应用列表响应失败: %v", err)
 		}
-		
+
 		// 将结果转换为格式化的JSON字符串
 		resultJSON, err := json.MarshalIndent(result, "", "  ")
 		if err != nil {
@@ -170,17 +167,16 @@ func (s *Service) handleAppsList(request *protocol.CallToolRequest) (*protocol.C
 			// 如果格式化失败，直接返回原始数据
 			resultJSON = resp
 		}
-		
+
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
-					Type: "text",
+				&protocol.TextContent{
 					Text: string(resultJSON),
 				},
 			},
 		}, nil
 	}
-	
+
 	// 成功解析为AppsResponse结构体
 	logger.Info("成功解析应用列表数据，共有 %d 个应用", len(appsResp.Data.List))
 
@@ -200,8 +196,7 @@ func (s *Service) handleAppsList(request *protocol.CallToolRequest) (*protocol.C
 	// 返回结果
 	return &protocol.CallToolResult{
 		Content: []protocol.Content{
-			protocol.TextContent{
-				Type: "text",
+			&protocol.TextContent{
 				Text: string(resultJSON),
 			},
 		},
@@ -209,7 +204,7 @@ func (s *Service) handleAppsList(request *protocol.CallToolRequest) (*protocol.C
 }
 
 // handleCreateApp 处理创建应用的请求
-func (s *Service) handleCreateApp(request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
+func (service *Service) handleCreateApp(ctx context.Context, request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
 	// 解析请求参数
 	req := new(models.CreateAppRequest)
 	if err := protocol.VerifyAndUnmarshal(request.RawArguments, req); err != nil {
@@ -243,8 +238,7 @@ func (s *Service) handleCreateApp(request *protocol.CallToolRequest) (*protocol.
 		// 返回带有详细错误信息的响应
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
-					Type: "text",
+				&protocol.TextContent{
 					Text: detailedErrMsg,
 				},
 			},
@@ -258,8 +252,7 @@ func (s *Service) handleCreateApp(request *protocol.CallToolRequest) (*protocol.
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
-					Type: "text",
+				&protocol.TextContent{
 					Text: errMsg,
 				},
 			},
@@ -272,8 +265,7 @@ func (s *Service) handleCreateApp(request *protocol.CallToolRequest) (*protocol.
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
-					Type: "text",
+				&protocol.TextContent{
 					Text: errMsg,
 				},
 			},
@@ -286,8 +278,7 @@ func (s *Service) handleCreateApp(request *protocol.CallToolRequest) (*protocol.
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
-					Type: "text",
+				&protocol.TextContent{
 					Text: errMsg,
 				},
 			},
@@ -301,14 +292,13 @@ func (s *Service) handleCreateApp(request *protocol.CallToolRequest) (*protocol.
 	logger.Info("创建应用: %s, 应用名称: %s", path, req.AppName)
 
 	// 调用Rainbond API创建应用
-	resp, err := s.client.Post(path, req)
+	resp, err := service.client.Post(path, req)
 	if err != nil {
 		errMsg := fmt.Sprintf("创建应用失败: %v", err)
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
-					Type: "text",
+				&protocol.TextContent{
 					Text: errMsg,
 				},
 			},
@@ -323,8 +313,7 @@ func (s *Service) handleCreateApp(request *protocol.CallToolRequest) (*protocol.
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
-					Type: "text",
+				&protocol.TextContent{
 					Text: errMsg,
 				},
 			},
@@ -339,8 +328,7 @@ func (s *Service) handleCreateApp(request *protocol.CallToolRequest) (*protocol.
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
-					Type: "text",
+				&protocol.TextContent{
 					Text: errMsg,
 				},
 			},
@@ -351,8 +339,7 @@ func (s *Service) handleCreateApp(request *protocol.CallToolRequest) (*protocol.
 	// 返回结果
 	return &protocol.CallToolResult{
 		Content: []protocol.Content{
-			protocol.TextContent{
-				Type: "text",
+			&protocol.TextContent{
 				Text: string(resultJSON),
 			},
 		},

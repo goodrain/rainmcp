@@ -30,13 +30,10 @@ type Property struct {
 	// Properties describes the properties of an object, if the schema type is Object.
 	Properties map[string]*Property `json:"properties,omitempty"`
 	Required   []string             `json:"required,omitempty"`
+	Enum       []string             `json:"enum,omitempty"`
 }
 
 var schemaCache = pkg.SyncMap[*InputSchema]{}
-
-func GenerateSchemaFromReqStruct(v any) (*InputSchema, error) {
-	return generateSchemaFromReqStruct(v)
-}
 
 func generateSchemaFromReqStruct(v any) (*InputSchema, error) {
 	t := reflect.TypeOf(v)
@@ -67,17 +64,28 @@ func generateSchemaFromReqStruct(v any) (*InputSchema, error) {
 }
 
 func getTypeUUID(t reflect.Type) string {
-	return t.PkgPath() + "/" + t.Name()
+	if t.PkgPath() != "" && t.Name() != "" {
+		return t.PkgPath() + "." + t.Name()
+	}
+	// fallback for unnamed types (like anonymous struct)
+	return t.String()
 }
 
 func reflectSchemaByObject(t reflect.Type) (*Property, error) {
 	var (
-		properties     = make(map[string]*Property)
-		requiredFields = make([]string, 0)
+		properties      = make(map[string]*Property)
+		requiredFields  = make([]string, 0)
+		anonymousFields = make([]reflect.StructField, 0)
 	)
 
 	for i := 0; i < t.NumField(); i++ {
 		field := t.Field(i)
+
+		if field.Anonymous {
+			anonymousFields = append(anonymousFields, field)
+			continue
+		}
+
 		if !field.IsExported() {
 			continue
 		}
@@ -86,7 +94,7 @@ func reflectSchemaByObject(t reflect.Type) (*Property, error) {
 		if jsonTag == "-" {
 			continue
 		}
-		var required = true
+		required := true
 		if jsonTag == "" {
 			jsonTag = field.Name
 		}
@@ -114,6 +122,46 @@ func reflectSchemaByObject(t reflect.Type) (*Property, error) {
 		if required {
 			requiredFields = append(requiredFields, jsonTag)
 		}
+
+		if v := field.Tag.Get("enum"); v != "" {
+			enumValues := strings.Split(v, ",")
+			for j, value := range enumValues {
+				enumValues[j] = strings.TrimSpace(value)
+			}
+
+			// Check if enum values are consistent with the field type
+			for _, value := range enumValues {
+				switch field.Type.Kind() {
+				case reflect.String:
+					// No additional processing required for string type
+				case reflect.Int, reflect.Int64:
+					if _, err := strconv.Atoi(value); err != nil {
+						return nil, fmt.Errorf("enum value %q is not compatible with type %v", value, field.Type)
+					}
+				case reflect.Float64:
+					if _, err := strconv.ParseFloat(value, 64); err != nil {
+						return nil, fmt.Errorf("enum value %q is not compatible with type %v", value, field.Type)
+					}
+				default:
+					return nil, fmt.Errorf("unsupported type %v for enum validation", field.Type)
+				}
+			}
+			item.Enum = enumValues
+		}
+	}
+
+	for _, field := range anonymousFields {
+		object, err := reflectSchemaByObject(field.Type)
+		if err != nil {
+			return nil, err
+		}
+		for propName, propValue := range object.Properties {
+			if _, ok := properties[propName]; ok {
+				return nil, fmt.Errorf("duplicate property name %s in anonymous struct", propName)
+			}
+			properties[propName] = propValue
+		}
+		requiredFields = append(requiredFields, object.Required...)
 	}
 
 	property := &Property{
@@ -151,6 +199,14 @@ func reflectSchemaByType(t reflect.Type) (*Property, error) {
 		}
 		object.Type = ObjectT
 		s = object
+	case reflect.Map:
+		if t.Key().Kind() != reflect.String {
+			return nil, fmt.Errorf("map key type %s is not supported", t.Key().Kind())
+		}
+		object := &Property{
+			Type: ObjectT,
+		}
+		s = object
 	case reflect.Ptr:
 		p, err := reflectSchemaByType(t.Elem())
 		if err != nil {
@@ -158,7 +214,7 @@ func reflectSchemaByType(t reflect.Type) (*Property, error) {
 		}
 		s = p
 	case reflect.Invalid, reflect.Uintptr, reflect.Complex64, reflect.Complex128,
-		reflect.Chan, reflect.Func, reflect.Interface, reflect.Map,
+		reflect.Chan, reflect.Func, reflect.Interface,
 		reflect.UnsafePointer:
 		return nil, fmt.Errorf("unsupported type: %s", t.Kind().String())
 	default:

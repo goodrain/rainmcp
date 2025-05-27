@@ -10,7 +10,9 @@ import (
 )
 
 // ListResourcesRequest Sent from the client to request a list of resources the server has.
-type ListResourcesRequest struct{}
+type ListResourcesRequest struct {
+	Cursor Cursor `json:"cursor,omitempty"`
+}
 
 // ListResourcesResult The server's response to a resources/list request from the client.
 type ListResourcesResult struct {
@@ -19,16 +21,18 @@ type ListResourcesResult struct {
 	 * An opaque token representing the pagination position after the last returned result.
 	 * If present, there may be more results available.
 	 */
-	NextCursor string `json:"nextCursor,omitempty"`
+	NextCursor Cursor `json:"nextCursor,omitempty"`
 }
 
 // ListResourceTemplatesRequest represents a request to list resource templates
-type ListResourceTemplatesRequest struct{}
+type ListResourceTemplatesRequest struct {
+	Cursor Cursor `json:"cursor,omitempty"`
+}
 
 // ListResourceTemplatesResult represents the response to a list resource templates request
 type ListResourceTemplatesResult struct {
 	ResourceTemplates []ResourceTemplate `json:"resourceTemplates"`
-	NextCursor        string             `json:"nextCursor,omitempty"`
+	NextCursor        Cursor             `json:"nextCursor,omitempty"`
 }
 
 // ReadResourceRequest represents a request to read a specific resource
@@ -51,7 +55,7 @@ func (r *ReadResourceResult) UnmarshalJSON(data []byte) error {
 	}{
 		Alias: (*Alias)(r),
 	}
-	if err := pkg.JsonUnmarshal(data, &aux); err != nil {
+	if err := pkg.JSONUnmarshal(data, &aux); err != nil {
 		return err
 	}
 
@@ -59,14 +63,14 @@ func (r *ReadResourceResult) UnmarshalJSON(data []byte) error {
 	for i, content := range aux.Contents {
 		// Try to unmarshal content as TextResourceContents first
 		var textContent TextResourceContents
-		if err := pkg.JsonUnmarshal(content, &textContent); err == nil {
+		if err := pkg.JSONUnmarshal(content, &textContent); err == nil {
 			r.Contents[i] = textContent
 			continue
 		}
 
 		// Try to unmarshal content as BlobResourceContents
 		var blobContent BlobResourceContents
-		if err := pkg.JsonUnmarshal(content, &blobContent); err == nil {
+		if err := pkg.JSONUnmarshal(content, &blobContent); err == nil {
 			r.Contents[i] = blobContent
 			continue
 		}
@@ -84,11 +88,17 @@ type Resource struct {
 	Name string `json:"name"`
 	// URI The URI of this resource.
 	URI string `json:"uri"`
-	// Description A description of what this resource represents. This can be used by clients to improve the LLM's understanding of available resources. It can be thought of like a "hint" to the model.
+	// Description A description of what this resource represents.
+	// This can be used by clients to improve the LLM's understanding of available resources.
+	// It can be thought of like a "hint" to the model.
 	Description string `json:"description,omitempty"`
 	// MimeType The MIME type of this resource, if known.
 	MimeType string `json:"mimeType,omitempty"`
 	Size     int64  `json:"size,omitempty"`
+}
+
+func (r Resource) GetName() string {
+	return r.Name
 }
 
 type ResourceTemplate struct {
@@ -98,6 +108,10 @@ type ResourceTemplate struct {
 	URITemplateParsed *uritemplate.Template `json:"-"`
 	Description       string                `json:"description,omitempty"`
 	MimeType          string                `json:"mimeType,omitempty"`
+}
+
+func (t ResourceTemplate) GetName() string {
+	return t.Name
 }
 
 func (t *ResourceTemplate) UnmarshalJSON(data []byte) error {
@@ -170,7 +184,7 @@ type TextContent struct {
 	Text string `json:"text"`
 }
 
-func (t TextContent) GetType() string {
+func (t *TextContent) GetType() string {
 	return "text"
 }
 
@@ -181,8 +195,19 @@ type ImageContent struct {
 	MimeType string `json:"mimeType"`
 }
 
-func (i ImageContent) GetType() string {
+func (i *ImageContent) GetType() string {
 	return "image"
+}
+
+type AudioContent struct {
+	Annotated
+	Type     string `json:"type"`
+	Data     []byte `json:"data"`
+	MimeType string `json:"mimeType"`
+}
+
+func (i *AudioContent) GetType() string {
+	return "audio"
 }
 
 // EmbeddedResource represents the contents of a resource, embedded into a prompt or tool call result.
@@ -202,7 +227,7 @@ func NewEmbeddedResource(resource ResourceContents, annotations *Annotations) *E
 	}
 }
 
-func (i EmbeddedResource) GetType() string {
+func (i *EmbeddedResource) GetType() string {
 	return "resource"
 }
 
@@ -269,7 +294,7 @@ func NewListResourcesRequest() *ListResourcesRequest {
 }
 
 // NewListResourcesResult creates a new list resources response
-func NewListResourcesResult(resources []Resource, nextCursor string) *ListResourcesResult {
+func NewListResourcesResult(resources []Resource, nextCursor Cursor) *ListResourcesResult {
 	return &ListResourcesResult{
 		Resources:  resources,
 		NextCursor: nextCursor,
@@ -282,7 +307,7 @@ func NewListResourceTemplatesRequest() *ListResourceTemplatesRequest {
 }
 
 // NewListResourceTemplatesResult creates a new list resource templates response
-func NewListResourceTemplatesResult(templates []ResourceTemplate, nextCursor string) *ListResourceTemplatesResult {
+func NewListResourceTemplatesResult(templates []ResourceTemplate, nextCursor Cursor) *ListResourceTemplatesResult {
 	return &ListResourceTemplatesResult{
 		ResourceTemplates: templates,
 		NextCursor:        nextCursor,

@@ -2,14 +2,15 @@ package transport
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"path"
+	"strings"
 	"sync"
 	"time"
-
-	"github.com/google/uuid"
 
 	"github.com/ThinkInAIXYZ/go-mcp/pkg"
 )
@@ -42,6 +43,12 @@ func WithSSEServerTransportOptionURLPrefix(urlPrefix string) SSEServerTransportO
 
 type SSEServerTransportAndHandlerOption func(*sseServerTransport)
 
+func WithSSEServerTransportAndHandlerOptionCopyParamKeys(paramsKey []string) SSEServerTransportAndHandlerOption {
+	return func(t *sseServerTransport) {
+		t.copyParamKeys = paramsKey
+	}
+}
+
 func WithSSEServerTransportAndHandlerOptionLogger(logger pkg.Logger) SSEServerTransportAndHandlerOption {
 	return func(t *sseServerTransport) {
 		t.logger = logger
@@ -58,20 +65,20 @@ type sseServerTransport struct {
 
 	httpSvr *http.Server
 
-	messageEndpointFullURL string // Auto-generated
-
-	// TODO: Need to periodically clean up invalid sessions
-	sessionStore pkg.SyncMap[chan []byte]
+	messageEndpointURL string // Auto-generated
 
 	inFlySend sync.WaitGroup
 
-	receiver ServerReceiver
+	receiver serverReceiver
+
+	sessionManager sessionManager
 
 	// options
-	logger      pkg.Logger
-	ssePath     string
-	messagePath string
-	urlPrefix   string
+	logger        pkg.Logger
+	ssePath       string
+	messagePath   string
+	urlPrefix     string
+	copyParamKeys []string
 }
 
 type SSEHandler struct {
@@ -103,16 +110,21 @@ func NewSSEServerTransport(addr string, opts ...SSEServerTransportOption) (Serve
 		logger:      pkg.DefaultLogger,
 		ssePath:     "/sse",
 		messagePath: "/message",
-		urlPrefix:   "http://" + addr,
+		urlPrefix:   "",
 	}
 	for _, opt := range opts {
 		opt(t)
 	}
-	messageEndpointFullURL, err := completeMessagePath(t.urlPrefix, t.messagePath)
-	if err != nil {
-		return nil, fmt.Errorf("NewSSEServerTransport failed: completeMessagePath %v", err)
+
+	t.messageEndpointURL = t.messagePath
+	// Set default values for ssePath and messagePath
+	if t.urlPrefix != "" {
+		messageEndpointFullURL, err := completeMessagePath(t.urlPrefix, t.messagePath)
+		if err != nil {
+			return nil, fmt.Errorf("NewSSEServerTransport failed: completeMessagePath %v", err)
+		}
+		t.messageEndpointURL = messageEndpointFullURL
 	}
-	t.messageEndpointFullURL = messageEndpointFullURL
 
 	mux := http.NewServeMux()
 	mux.HandleFunc(t.ssePath, t.handleSSE)
@@ -127,15 +139,30 @@ func NewSSEServerTransport(addr string, opts ...SSEServerTransportOption) (Serve
 	return t, nil
 }
 
-// NewSSEServerTransportAndHandler returns a transport without starting the HTTP server, and returns a Handler for users to start their own HTTP server externally
-func NewSSEServerTransportAndHandler(messageEndpointFullURL string, opts ...SSEServerTransportAndHandlerOption) (ServerTransport, *SSEHandler, error) {
+// NewSSEServerTransportAndHandler returns transport without starting the HTTP server,
+// and returns a Handler for users to start their own HTTP server externally
+// eg:
+// 1. relative path
+// transport, handler, _ :=  NewSSEServerTransportAndHandler("/sse/message")
+// http.Handle("/sse", handler.HandleSSE())
+// http.Handle("/sse/message", handler.HandleMessage())
+// http.ListenAndServe(":8080", nil)
+// 2. full url
+// transport, handler, _ :=  NewSSEServerTransportAndHandler("https://thinkingai.xyz/api/v1/sse/message")
+// http.Handle("/sse", handler.HandleSSE())
+// http.Handle("/sse/message", handler.HandleMessage())
+// http.ListenAndServe(":8080", nil)
+func NewSSEServerTransportAndHandler(messageEndpointURL string,
+	opts ...SSEServerTransportAndHandlerOption,
+) (ServerTransport, *SSEHandler, error) { //nolint:whitespace
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	t := &sseServerTransport{
-		ctx:                    ctx,
-		cancel:                 cancel,
-		messageEndpointFullURL: messageEndpointFullURL,
-		logger:                 pkg.DefaultLogger,
+		ctx:                ctx,
+		cancel:             cancel,
+		messageEndpointURL: messageEndpointURL,
+		logger:             pkg.DefaultLogger,
 	}
 	for _, opt := range opts {
 		opt(t)
@@ -150,6 +177,8 @@ func (t *sseServerTransport) Run() error {
 		return nil
 	}
 
+	fmt.Printf("starting mcp server at http://%s%s\n", t.httpSvr.Addr, t.ssePath)
+
 	if err := t.httpSvr.ListenAndServe(); err != nil {
 		return fmt.Errorf("failed to start HTTP server: %w", err)
 	}
@@ -162,33 +191,26 @@ func (t *sseServerTransport) Send(ctx context.Context, sessionID string, msg Mes
 
 	select {
 	case <-t.ctx.Done():
-		return ctx.Err()
+		return t.ctx.Err()
 	default:
-	}
-
-	conn, ok := t.sessionStore.Load(sessionID)
-	if !ok {
-		return pkg.ErrLackSession
-	}
-
-	select {
-	case conn <- msg:
-		return nil
-	case <-ctx.Done():
-		return ctx.Err()
+		return t.sessionManager.EnqueueMessageForSend(ctx, sessionID, msg)
 	}
 }
 
-func (t *sseServerTransport) SetReceiver(receiver ServerReceiver) {
+func (t *sseServerTransport) SetReceiver(receiver serverReceiver) {
 	t.receiver = receiver
+}
+
+func (t *sseServerTransport) SetSessionManager(manager sessionManager) {
+	t.sessionManager = manager
 }
 
 // handleSSE handles incoming SSE connections from clients and sends messages to them.
 func (t *sseServerTransport) handleSSE(w http.ResponseWriter, r *http.Request) {
-	defer pkg.Recover()
+	defer pkg.RecoverWithFunc(func(_ any) {
+		t.writeError(w, http.StatusInternalServerError, "Internal server error")
+	})
 
-	//nolint:govet // Ignore error since we're just logging
-	ctx := r.Context()
 	// Set headers for SSE
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -197,41 +219,57 @@ func (t *sseServerTransport) handleSSE(w http.ResponseWriter, r *http.Request) {
 	// Create flush-supporting writer
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		t.writeError(w, http.StatusInternalServerError, "Streaming not supported")
 		return
 	}
 	w.WriteHeader(http.StatusOK)
 
 	// Create an SSE connection
-	sessionChan := make(chan []byte, 64)
-	sessionID := uuid.New().String()
-	t.sessionStore.Store(sessionID, sessionChan)
-	defer t.sessionStore.Delete(sessionID)
+	sessionID := t.sessionManager.CreateSession(r.Context())
+	defer t.sessionManager.CloseSession(sessionID)
 
-	uri := fmt.Sprintf("%s?sessionID=%s", t.messageEndpointFullURL, sessionID)
+	uri := fmt.Sprintf("%s?sessionID=%s", t.messageEndpointURL, sessionID)
+
+	for _, key := range t.copyParamKeys {
+		uri += fmt.Sprintf("&%s=%s", key, r.URL.Query().Get(key))
+	}
+
 	// Send the initial endpoint event
-	_, _ = fmt.Fprintf(w, "event: endpoint\ndata: %s\n\n", uri)
+	if _, err := fmt.Fprintf(w, "event: endpoint\ndata: %s\n\n", uri); err != nil {
+		t.logger.Errorf("send endpoint message fail")
+		return
+	}
 	flusher.Flush()
 
-	for msg := range sessionChan {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			_, err := fmt.Fprintf(w, "event: message\ndata: %s\n\n", msg)
-			if err != nil {
-				t.logger.Errorf("Failed to write message: %v", err)
-				continue
+	if err := t.sessionManager.OpenMessageQueueForSend(sessionID); err != nil {
+		t.logger.Errorf("handleSSE sessionID=%s OpenMessageQueueForSend fail: %v", sessionID, err)
+		return
+	}
+
+	for {
+		msg, err := t.sessionManager.DequeueMessageForSend(r.Context(), sessionID)
+		if err != nil {
+			if errors.Is(err, pkg.ErrSendEOF) {
+				return
 			}
-			flusher.Flush()
+			t.logger.Debugf("sse connect dequeueMessage err: %+v, sessionID=%s", err.Error(), sessionID)
+			return
 		}
+
+		t.logger.Debugf("Sending message: %s", string(msg))
+
+		if _, err = fmt.Fprintf(w, "event: message\ndata: %s\n\n", msg); err != nil {
+			t.logger.Errorf("Failed to write message: %v", err)
+			continue
+		}
+		flusher.Flush()
 	}
 }
 
 // handleMessage processes incoming JSON-RPC messages from clients and sends responses
 // back through both the SSE connection and HTTP response.
 func (t *sseServerTransport) handleMessage(w http.ResponseWriter, r *http.Request) {
-	defer pkg.RecoverWithFunc(func(r any) {
+	defer pkg.RecoverWithFunc(func(_ any) {
 		t.writeError(w, http.StatusInternalServerError, "Internal server error")
 	})
 
@@ -246,35 +284,41 @@ func (t *sseServerTransport) handleMessage(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	_, ok := t.sessionStore.Load(sessionID)
-	if !ok {
-		t.writeError(w, http.StatusBadRequest, "Invalid session ID")
-		return
-	}
-
-	ctx := r.Context()
 	// Parse message as raw JSON
-	bs, err := io.ReadAll(r.Body)
+	inputMsg, err := io.ReadAll(r.Body)
 	if err != nil {
 		t.writeError(w, http.StatusBadRequest, fmt.Sprintf("Invalid request: %v", err))
 		return
 	}
-	if err = t.receiver.Receive(ctx, sessionID, bs); err != nil {
+
+	outputMsgCh, err := t.receiver.Receive(r.Context(), sessionID, inputMsg)
+	if err != nil {
 		t.writeError(w, http.StatusBadRequest, fmt.Sprintf("Failed to receive: %v", err))
 		return
 	}
-	// Process message through MCPServer
 
-	// For notifications, just send 202 Accepted with no body
-	t.logger.Debugf("Received message: %s", string(bs))
-	// ref: https://github.com/encode/httpx/blob/master/httpx/_status_codes.py#L8
-	// in official httpx, 2xx is success
+	t.logger.Debugf("Received message: %s", string(inputMsg))
 	w.WriteHeader(http.StatusAccepted)
+
+	if outputMsgCh == nil {
+		return
+	}
+
+	go func() {
+		defer pkg.Recover()
+
+		for msg := range outputMsgCh {
+			if e := t.Send(context.Background(), sessionID, msg); e != nil {
+				t.logger.Errorf("Failed to send message: %v", e)
+			}
+		}
+	}()
 }
 
 // writeError writes a JSON-RPC error response with the given error details.
 func (t *sseServerTransport) writeError(w http.ResponseWriter, code int, message string) {
-	t.logger.Errorf("sseServerTransport writeError: code: %d, message: %s", code, message)
+	t.logger.Errorf("sseServerTransport Error: code: %d, message: %s", code, message)
+
 	w.Header().Set("Content-Type", "text/plain")
 	w.WriteHeader(code)
 	if _, err := w.Write([]byte(message)); err != nil {
@@ -290,11 +334,7 @@ func (t *sseServerTransport) Shutdown(userCtx context.Context, serverCtx context
 
 		t.inFlySend.Wait()
 
-		t.sessionStore.Range(func(key string, ch chan []byte) bool {
-			close(ch)
-			return true
-		})
-
+		t.sessionManager.CloseAllSessions()
 	}
 
 	if t.httpSvr == nil {
@@ -312,9 +352,32 @@ func (t *sseServerTransport) Shutdown(userCtx context.Context, serverCtx context
 }
 
 func completeMessagePath(urlPrefix string, messagePath string) (string, error) {
-	parse, err := url.Parse(urlPrefix + messagePath)
+	prefixURL, err := url.Parse(urlPrefix)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("[completeMessagePath] failed to parse URL prefix: %w", err)
 	}
-	return parse.String(), nil
+	joinPath(prefixURL, messagePath)
+	return prefixURL.String(), nil
+}
+
+// joinPath provided path elements joined to
+// any existing path and the resulting path cleaned of any ./ or ../ elements.
+// Any sequences of multiple / characters will be reduced to a single /.
+func joinPath(u *url.URL, elem ...string) {
+	elem = append([]string{u.EscapedPath()}, elem...)
+	var p string
+	if !strings.HasPrefix(elem[0], "/") {
+		// Return a relative path if u is relative,
+		// but ensure that it contains no ../ elements.
+		elem[0] = "/" + elem[0]
+		p = path.Join(elem...)[1:]
+	} else {
+		p = path.Join(elem...)
+	}
+	// path.Join will remove any trailing slashes.
+	// Preserve at least one.
+	if strings.HasSuffix(elem[len(elem)-1], "/") && !strings.HasSuffix(p, "/") {
+		p += "/"
+	}
+	u.Path = p
 }

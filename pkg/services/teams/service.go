@@ -1,6 +1,7 @@
 package teams
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"rainmcp/pkg/api"
@@ -41,11 +42,11 @@ func RegisterTools(mcpServer *server.Server, service *Service) {
 }
 
 // handleTeamsList 处理获取团队列表的请求
-func (s *Service) handleTeamsList(request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
+func (service *Service) handleTeamsList(ctx context.Context, request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
 	logger.Info("获取团队列表")
 
 	// 调用Rainbond API获取团队列表
-	resp, err := s.client.Get("/openapi/v1/teams")
+	resp, err := service.client.Get("/openapi/v1/teams")
 	if err != nil {
 		logger.Error("获取团队列表失败: %v", err)
 		return nil, fmt.Errorf("获取团队列表失败: %v", err)
@@ -78,7 +79,7 @@ func (s *Service) handleTeamsList(request *protocol.CallToolRequest) (*protocol.
 
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
-				protocol.TextContent{
+				&protocol.TextContent{
 					Type: "text",
 					Text: string(resultJSON),
 				},
@@ -105,7 +106,7 @@ func (s *Service) handleTeamsList(request *protocol.CallToolRequest) (*protocol.
 	// 返回结果
 	return &protocol.CallToolResult{
 		Content: []protocol.Content{
-			protocol.TextContent{
+			&protocol.TextContent{
 				Type: "text",
 				Text: string(resultJSON),
 			},

@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -34,52 +35,108 @@ func WithSSEClientOptionLogger(log pkg.Logger) SSEClientTransportOption {
 	}
 }
 
+func WithRetryFunc(retry func(func() error)) SSEClientTransportOption {
+	return func(t *sseClientTransport) {
+		t.retry = retry
+	}
+}
+
 type sseClientTransport struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	serverURL string
+	serverURL *url.URL
 
 	endpointChan    chan struct{}
 	messageEndpoint *url.URL
-	receiver        ClientReceiver
+	receiver        clientReceiver
 
 	// options
 	logger         pkg.Logger
 	receiveTimeout time.Duration
 	client         *http.Client
+
+	retry func(func() error)
+
+	sseConnectClose chan struct{}
 }
 
 func NewSSEClientTransport(serverURL string, opts ...SSEClientTransportOption) (ClientTransport, error) {
-	ctx, cancel := context.WithCancel(context.Background())
+	parsedURL, err := url.Parse(serverURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse server URL: %w", err)
+	}
 
-	x := &sseClientTransport{
-		ctx:             ctx,
-		cancel:          cancel,
-		serverURL:       serverURL,
+	t := &sseClientTransport{
+		serverURL:       parsedURL,
 		endpointChan:    make(chan struct{}, 1),
 		messageEndpoint: nil,
 		receiver:        nil,
 		logger:          pkg.DefaultLogger,
 		receiveTimeout:  time.Second * 30,
 		client:          http.DefaultClient,
+		sseConnectClose: make(chan struct{}),
+		retry: func(operation func() error) {
+			for {
+				if e := operation(); e == nil {
+					return
+				}
+				time.Sleep(100 * time.Millisecond)
+			}
+		},
 	}
 
 	for _, opt := range opts {
-		opt(x)
+		opt(t)
 	}
 
-	return x, nil
+	return t, nil
 }
 
-func (t *sseClientTransport) Start() error {
-	var (
-		err  error
-		req  *http.Request
-		resp *http.Response
-	)
+func (t *sseClientTransport) Start() (err error) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.ctx = ctx
+	t.cancel = cancel
 
-	req, err = http.NewRequest(http.MethodGet, t.serverURL, nil)
+	defer func() {
+		if err != nil {
+			t.cancel()
+		}
+	}()
+
+	errChan := make(chan error, 1)
+	go func() {
+		defer pkg.Recover()
+		defer close(t.sseConnectClose)
+
+		t.retry(func() error {
+			if e := t.startSSE(); e != nil {
+				if errors.Is(e, context.Canceled) {
+					return nil
+				}
+				t.logger.Errorf("startSSE: %+v", e)
+				t.receiver.Interrupt(fmt.Errorf("SSE connection disconnection: %w", e))
+				return e
+			}
+			return nil
+		})
+	}()
+
+	// Wait for the endpoint to be received
+	select {
+	case <-t.endpointChan:
+	// Endpoint received, proceed
+	case err = <-errChan:
+		return fmt.Errorf("error in SSE stream: %w", err)
+	case <-time.After(10 * time.Second): // Add a timeout
+		return fmt.Errorf("timeout waiting for endpoint")
+	}
+
+	return nil
+}
+
+func (t *sseClientTransport) startSSE() error {
+	req, err := http.NewRequestWithContext(t.ctx, http.MethodGet, t.serverURL.String(), nil)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
@@ -88,36 +145,22 @@ func (t *sseClientTransport) Start() error {
 	req.Header.Set("Cache-Control", "no-cache")
 	req.Header.Set("Connection", "keep-alive")
 
-	if resp, err = t.client.Do(req); err != nil {
+	resp, err := t.client.Do(req) //nolint:bodyclose
+	if err != nil {
 		return fmt.Errorf("failed to connect to SSE stream: %w", err)
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		_ = resp.Body.Close()
 		return fmt.Errorf("unexpected status code: %d, status: %s", resp.StatusCode, resp.Status)
 	}
 
-	go func() {
-		defer pkg.Recover()
-
-		t.readSSE(resp.Body)
-	}()
-
-	// Wait for the endpoint to be received
-
-	select {
-	case <-t.endpointChan:
-		// Endpoint received, proceed
-	case <-time.After(10 * time.Second): // Add a timeout
-		return fmt.Errorf("timeout waiting for endpoint")
-	}
-
-	return nil
+	return t.readSSE(resp.Body)
 }
 
 // readSSE continuously reads the SSE stream and processes events.
 // It runs until the connection is closed or an error occurs.
-func (t *sseClientTransport) readSSE(reader io.ReadCloser) {
+func (t *sseClientTransport) readSSE(reader io.ReadCloser) error {
 	defer func() {
 		_ = reader.Close()
 	}()
@@ -133,14 +176,12 @@ func (t *sseClientTransport) readSSE(reader io.ReadCloser) {
 				if event != "" && data != "" {
 					t.handleSSEEvent(event, data)
 				}
-				break
 			}
 			select {
 			case <-t.ctx.Done():
-				return
+				return t.ctx.Err()
 			default:
-				t.logger.Errorf("SSE stream error: %v", err)
-				return
+				return fmt.Errorf("SSE stream error: %w", err)
 			}
 		}
 
@@ -169,14 +210,17 @@ func (t *sseClientTransport) readSSE(reader io.ReadCloser) {
 func (t *sseClientTransport) handleSSEEvent(event, data string) {
 	switch event {
 	case "endpoint":
-		endpoint, err := url.Parse(data)
+		endpoint, err := t.serverURL.Parse(data)
 		if err != nil {
 			t.logger.Errorf("Error parsing endpoint URL: %v", err)
 			return
 		}
 		t.logger.Debugf("Received endpoint: %s", endpoint.String())
 		t.messageEndpoint = endpoint
-		close(t.endpointChan)
+		select {
+		case t.endpointChan <- struct{}{}:
+		default:
+		}
 	case "message":
 		ctx, cancel := context.WithTimeout(t.ctx, t.receiveTimeout)
 		defer cancel()
@@ -201,9 +245,12 @@ func (t *sseClientTransport) Send(ctx context.Context, msg Message) error {
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 
+	req.Header.Set("Content-Type", "application/json")
+
 	if resp, err = t.client.Do(req); err != nil {
 		return fmt.Errorf("failed to send message: %w", err)
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 		return fmt.Errorf("unexpected status code: %d, status: %s", resp.StatusCode, resp.Status)
@@ -212,12 +259,14 @@ func (t *sseClientTransport) Send(ctx context.Context, msg Message) error {
 	return nil
 }
 
-func (t *sseClientTransport) SetReceiver(receiver ClientReceiver) {
+func (t *sseClientTransport) SetReceiver(receiver clientReceiver) {
 	t.receiver = receiver
 }
 
 func (t *sseClientTransport) Close() error {
 	t.cancel()
+
+	<-t.sseConnectClose
 
 	return nil
 }
