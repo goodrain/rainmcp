@@ -18,7 +18,35 @@ type PageInfo struct {
 // 团队相关模型
 // ===============
 
-// TeamRegion 表示团队关联的集群信息
+// TeamRegionInfo 表示团队关联的区域信息
+type TeamRegionInfo struct {
+	RegionName  string `json:"region_name"`
+	RegionAlias string `json:"region_alias"`
+}
+
+// Team 表示Rainbond平台中的团队
+type Team struct {
+	TeamAlias  string           `json:"team_alias" description:"团队中文名称"`
+	CreateTime string           `json:"create_time"`
+	OwnerName  string           `json:"owner_name"`
+	RegionList []TeamRegionInfo `json:"region_list"`
+}
+
+// TeamsData 表示团队数据结构
+type TeamsData struct {
+	Bean interface{} `json:"bean"`
+	List []Team      `json:"list"`
+}
+
+// TeamsResponse 表示获取团队列表的响应
+type TeamsResponse struct {
+	Code    int       `json:"code"`
+	Msg     string    `json:"msg"`
+	MsgShow string    `json:"msg_show"`
+	Data    TeamsData `json:"data"`
+}
+
+// TeamRegion 表示团队关联的集群信息(保留旧结构以兼容)
 type TeamRegion struct {
 	RegionID    string `json:"region_id"`
 	RegionName  string `json:"region_name"`
@@ -26,8 +54,8 @@ type TeamRegion struct {
 	Status      string `json:"status"`
 }
 
-// Team 表示Rainbond平台中的团队
-type Team struct {
+// LegacyTeam 表示旧版本的团队结构(保留以兼容)
+type LegacyTeam struct {
 	ID          int          `json:"ID"`
 	TenantID    string       `json:"tenant_id"`
 	TenantName  string       `json:"tenant_name" description:"团队英文名称"`
@@ -37,40 +65,29 @@ type Team struct {
 	Regions     []TeamRegion `json:"regions"`
 }
 
-// TeamsResponse 表示获取团队列表的响应
-type TeamsResponse struct {
-	Tenants  []Team `json:"tenants"`
-	Total    int    `json:"total"`
-	Page     int    `json:"page"`
-	PageSize int    `json:"page_size"`
-	Response
-}
-
 // 集群相关模型
 // ===============
 
-// Region 表示Rainbond平台中的集群
-type Region struct {
-	ID          string `json:"ID,omitempty"`
-	RegionID    string `json:"region_id"`
+// RegionInfo 表示集群基本信息（新版本API响应）
+type RegionInfo struct {
 	RegionName  string `json:"region_name"`
 	RegionAlias string `json:"region_alias"`
 	Status      string `json:"status"`
 	Desc        string `json:"desc"`
-	URL         string `json:"url,omitempty"`
-	WSURL       string `json:"wsurl,omitempty"`
-	HTTPURL     string `json:"httpurl,omitempty"`
-	TCPDomain   string `json:"tcpdomain"`
-	HTTPDomain  string `json:"httpdomain,omitempty"`
-	Scope       string `json:"scope,omitempty"`
-	SSL         bool   `json:"ssl,omitempty"`
-	WSL         bool   `json:"wsL,omitempty"`
 }
 
-// RegionsResponse 表示获取集群列表的响应
+// RegionsData 表示集群数据结构
+type RegionsData struct {
+	Bean interface{}  `json:"bean"`
+	List []RegionInfo `json:"list"`
+}
+
+// RegionsResponse 表示获取集群列表的响应（新版本）
 type RegionsResponse struct {
-	Regions []Region `json:"regions,omitempty"`
-	Data    []Region `json:"data,omitempty"`
+	Code    int         `json:"code"`
+	Msg     string      `json:"msg"`
+	MsgShow string      `json:"msg_show"`
+	Data    RegionsData `json:"data"`
 }
 
 // 应用相关模型
@@ -85,18 +102,40 @@ type App struct {
 	Region      string    `json:"region"`
 	RegionAlias string    `json:"region_alias"`
 	Status      string    `json:"status"`
-	TeamName    string    `json:"tenant_name"`
+	TeamAlias   string    `json:"team_alias"`
 }
 
 // AppsRequest 表示获取应用列表的请求参数
 type AppsRequest struct {
-	TeamName    string `json:"tenant_name" description:"团队名称"`
-	TenantAlias string `json:"tenant_alias" description:"团队别名"`
-	RegionName  string `json:"region_name" description:"集群名称"`
+	TeamAlias  string `json:"team_alias" description:"团队别名"`
+	RegionName string `json:"region_name" description:"集群名称"`
 }
 
-// AppItem 表示应用列表中的单个应用项
+// AppItem 表示应用列表中的单个应用项（新版本）
 type AppItem struct {
+	GroupID     int     `json:"group_id" description:"应用ID"`
+	GroupName   string  `json:"group_name" description:"应用名称"`
+	Description *string `json:"description" description:"应用描述"`
+	UpdateTime  string  `json:"update_time" description:"更新时间"`
+	CreateTime  string  `json:"create_time" description:"创建时间"`
+}
+
+// AppListData 应用列表响应中的数据部分
+type AppListData struct {
+	Bean interface{} `json:"bean"`
+	List []AppItem   `json:"list"`
+}
+
+// AppsResponse 获取应用列表的响应（新版本）
+type AppsResponse struct {
+	Code    int         `json:"code"`
+	Msg     string      `json:"msg"`
+	MsgShow string      `json:"msg_show"`
+	Data    AppListData `json:"data"`
+}
+
+// LegacyAppItem 表示应用列表中的单个应用项（旧版本，保留以兼容）
+type LegacyAppItem struct {
 	AppID      int    `json:"app_id"`
 	TenantID   string `json:"tenant_id"`
 	GroupName  string `json:"group_name" description:"应用中文名称"`
@@ -105,105 +144,29 @@ type AppItem struct {
 	K8sApp     string `json:"k8s_app" description:"应用英文名称"`
 }
 
-// AppListData 应用列表响应中的数据部分
-type AppListData struct {
-	List []AppItem `json:"list"`
+// LegacyAppListData 应用列表响应中的数据部分（旧版本）
+type LegacyAppListData struct {
+	List []LegacyAppItem `json:"list"`
 }
 
-// AppsResponse 获取应用列表的响应
-type AppsResponse struct {
-	Msg     string      `json:"msg"`
-	MsgShow string      `json:"msg_show"`
-	Data    AppListData `json:"data"`
+// LegacyAppsResponse 获取应用列表的响应（旧版本，保留以兼容）
+type LegacyAppsResponse struct {
+	Msg     string            `json:"msg"`
+	MsgShow string            `json:"msg_show"`
+	Data    LegacyAppListData `json:"data"`
 }
 
 // CreateAppRequest 创建应用的请求参数
 type CreateAppRequest struct {
-	TeamName   string `json:"tenant_name" description:"团队名称"`
+	TeamAlias  string `json:"team_alias" description:"团队别名"`
 	RegionName string `json:"region_name" description:"集群名称"`
 	AppName    string `json:"app_name" description:"应用名称"` // 修改为app_name字段
-	Note       string `json:"note,omitempty" description:"应用描述"`
 }
 
 // CreateAppResponse 创建应用的响应
 type CreateAppResponse struct {
 	Response
 	Data App `json:"data"`
-}
-
-// ComponentDetailResponse 获取组件详情的响应
-type ComponentDetailResponse struct {
-	// 基本信息
-	ServiceID     string `json:"service_id" description:"组件ID"`
-	TenantID      string `json:"tenant_id" description:"团队ID"`
-	ServiceAlias  string `json:"service_alias" description:"组件别名"`
-	ServiceCName  string `json:"service_cname" description:"组件中文名"`
-	ServiceRegion string `json:"service_region" description:"所属集群"`
-	Image         string `json:"image" description:"镜像"`
-	Cmd           string `json:"cmd" description:"启动命令"`
-	MinNode       int    `json:"min_node" description:"最小节点数"`
-	MinCPU        int    `json:"min_cpu" description:"CPU配额"`
-	ContainerGPU  int    `json:"container_gpu" description:"GPU配额"`
-	MinMemory     int    `json:"min_memory" description:"内存配额"`
-	ExtendMethod  string `json:"extend_method" description:"伸缩方式"`
-
-	// 源码相关字段
-	CodeFrom     string `json:"code_from" description:"源码来源"`
-	GitURL       string `json:"git_url" description:"Git仓库地址"`
-	GitProjectID int    `json:"git_project_id" description:"Git项目ID"`
-	CodeVersion  string `json:"code_version" description:"代码版本"`
-
-	// 状态相关字段
-	ServiceType          string        `json:"service_type" description:"服务类型"`
-	Creater              int           `json:"creater" description:"创建者ID"`
-	Language             interface{}   `json:"language" description:"编程语言"`
-	TotalMemory          int           `json:"total_memory" description:"总内存"`
-	IsService            bool          `json:"is_service" description:"是否为服务"`
-	ServiceOrigin        string        `json:"service_origin" description:"服务来源"`
-	TenantServiceGroupID int           `json:"tenant_service_group_id" description:"服务组ID"`
-	OpenWebhooks         bool          `json:"open_webhooks" description:"是否开启Webhooks"`
-	ServiceSource        string        `json:"service_source" description:"服务源类型，区分源码或镜像"`
-	CreateStatus         string        `json:"create_status" description:"创建状态"`
-	Status               string        `json:"status" description:"运行状态"`
-	AccessInfos          []interface{} `json:"access_infos" description:"访问信息"`
-
-	// Docker相关字段
-	DockerCmd  interface{} `json:"docker_cmd" description:"Docker命令"`
-	ServerType string      `json:"server_type" description:"服务器类型"`
-
-	// Kubernetes相关字段
-	K8sComponentName string `json:"k8s_component_name" description:"Kubernetes组件名称"`
-	Arch             string `json:"arch" description:"架构"`
-}
-
-// CreateImageComponentRequest 创建组件的请求参数
-type CreateImageComponentRequest struct {
-	// 路径参数（不包含在请求体中）
-	TeamName         string `json:"tenant_name" description:"团队名称"`
-	RegionName       string `json:"region_name" description:"集群名称"`
-	GroupID          int    `json:"group_id" description:"应用ID"`
-	ServiceCName     string `json:"service_cname" description:"组件名称"`
-	K8sComponentName string `json:"k8s_component_name" description:"组件英文名称"`
-	Image            string `json:"image" description:"镜像地址"`
-	DockerCmd        string `json:"docker_cmd,omitempty" description:"启动命令"`
-	UserName         string `json:"user_name,omitempty" description:"镜像仓库用户名"`
-	Password         string `json:"password,omitempty" description:"镜像仓库密码"`
-	// is_deploy 参数在服务器端始终设置为 true
-}
-
-// CreateCodeComponentRequest 基于源码创建组件的请求参数
-type CreateCodeComponentRequest struct {
-	// 路径参数（不包含在请求体中）
-	TeamName         string `json:"tenant_name" description:"团队名称"`
-	RegionName       string `json:"region_name" description:"集群名称"`
-	AppID            string `json:"app_id" description:"应用ID"`
-	ServiceCName     string `json:"service_cname" description:"组件名称"`
-	K8sComponentName string `json:"k8s_component_name" description:"组件英文名称"`
-	RepoURL          string `json:"repo_url" description:"代码仓库地址"`
-	Branch           string `json:"branch" description:"分支名称"`
-	Username         string `json:"username,omitempty" description:"仓库用户名"`
-	Password         string `json:"password,omitempty" description:"仓库密码"`
-	// is_deploy 参数在服务器端始终设置为 true
 }
 
 // ComponentPort 表示组件端口信息
@@ -218,6 +181,14 @@ type ComponentPort struct {
 	K8sServiceName string `json:"k8s_service_name" description:"Kubernetes服务名称"`
 }
 
+// PortInfo 端口信息（新版本API响应）
+type PortInfo struct {
+	Port           int    `json:"port" description:"端口号"`
+	Protocol       string `json:"protocol" description:"协议类型"`
+	IsOuterService bool   `json:"is_outer_service" description:"是否开启对外服务"`
+	IsInnerService bool   `json:"is_inner_service" description:"是否开启对内服务"`
+}
+
 // PortResponseData 端口操作响应中的数据部分
 type PortResponseData struct {
 	Bean ComponentPort `json:"bean"`
@@ -230,20 +201,23 @@ type PortResponse struct {
 	Data    PortResponseData `json:"data"`
 }
 
-// PortListData 端口列表响应中的数据部分
+// PortListData 端口列表响应中的数据部分（新版本）
 type PortListData struct {
-	List []ComponentPort `json:"list"`
+	Bean interface{} `json:"bean"`
+	List []PortInfo  `json:"list"`
 }
 
-// PortListResponse 获取端口列表的响应
+// PortListResponse 获取端口列表的响应（新版本）
 type PortListResponse struct {
-	Data PortListData `json:"data"`
+	Code    int          `json:"code"`
+	Msg     string       `json:"msg"`
+	MsgShow string       `json:"msg_show"`
+	Data    PortListData `json:"data"`
 }
 
 // AddPortRequest 表示添加组件端口的请求参数
 type AddPortRequest struct {
-	TenantID       string `json:"tenant_id" description:"团队ID"`
-	RegionName     string `json:"region_name" description:"集群名称"`
+	TeamAlias      string `json:"team_alias" description:"团队别名"`
 	AppID          string `json:"app_id" description:"应用ID"`
 	ServiceID      string `json:"service_id" description:"组件ID"`
 	Port           int    `json:"port" description:"端口号"`
@@ -271,10 +245,9 @@ type UpdatePortRequest struct {
 
 // ListPortsRequest 表示获取组件端口列表的请求参数
 type ListPortsRequest struct {
-	TenantID   string `json:"tenant_id" description:"团队ID"`
-	RegionName string `json:"region_name" description:"集群名称"`
-	AppID      string `json:"app_id" description:"应用ID"`
-	ServiceID  string `json:"service_id" description:"组件ID"`
+	TeamAlias string `json:"team_alias" description:"团队别名"`
+	AppID     string `json:"app_id" description:"应用ID"`
+	ServiceID string `json:"service_id" description:"组件ID"`
 }
 
 // DeletePortRequest 表示删除组件端口的请求参数
@@ -288,7 +261,7 @@ type DeletePortRequest struct {
 
 // BuildComponentRequest 表示构建组件的请求参数
 type BuildComponentRequest struct {
-	TeamName     string `json:"team_name" description:"团队名称"`
+	TeamAlias    string `json:"team_alias" description:"团队名称"`
 	RegionName   string `json:"region_name" description:"集群名称"`
 	AppID        string `json:"app_id" description:"应用ID"`
 	ServiceID    string `json:"service_id" description:"组件ID"`
@@ -298,17 +271,15 @@ type BuildComponentRequest struct {
 
 // ComponentDetailRequest 获取组件详情的请求参数
 type ComponentDetailRequest struct {
-	TeamName   string `json:"team_name" description:"团队名称"`
-	RegionName string `json:"region_name" description:"集群名称"`
-	AppID      string `json:"app_id" description:"应用ID"`
-	ServiceID  string `json:"service_id" description:"组件ID"`
+	TeamAlias string `json:"team_alias" description:"团队别名"`
+	AppID     string `json:"app_id" description:"应用ID"`
+	ServiceID string `json:"service_id" description:"组件ID"`
 }
 
 // ListComponentsRequest 获取应用下组件列表的请求参数
 type ListComponentsRequest struct {
-	TenantName string `json:"tenant_name" description:"团队英文名称"`
-	RegionName string `json:"region_name" description:"集群名称"`
-	AppID      string `json:"app_id" description:"应用ID"`
+	TeamAlias string `json:"team_alias" description:"团队别名"`
+	AppID     string `json:"app_id" description:"应用ID"`
 }
 
 // ComponentBaseInfo 组件基本信息
@@ -318,3 +289,88 @@ type ComponentBaseInfo struct {
 	ServiceCName     string `json:"service_cname" description:"组件中文名称"`
 	K8sComponentName string `json:"k8s_component_name" description:"组件英文名称"`
 }
+
+// ComponentInfo 组件信息（新版本API响应）
+type ComponentInfo struct {
+	ServiceID    string `json:"service_id" description:"组件ID"`
+	ServiceCName string `json:"service_cname" description:"组件中文名称"`
+	UpdateTime   string `json:"update_time" description:"更新时间"`
+	Status       string `json:"status" description:"组件状态"`
+}
+
+// ComponentListData 组件列表响应中的数据部分
+type ComponentListData struct {
+	Bean interface{}     `json:"bean"`
+	List []ComponentInfo `json:"list"`
+}
+
+// ComponentListResponse 获取组件列表的响应（新版本）
+type ComponentListResponse struct {
+	Code    int               `json:"code"`
+	Msg     string            `json:"msg"`
+	MsgShow string            `json:"msg_show"`
+	Data    ComponentListData `json:"data"`
+}
+
+// ComponentPortInfo 组件端口信息（用于组件详情）
+type ComponentPortInfo struct {
+	ContainerPort  int      `json:"container_port" description:"容器端口"`
+	Protocol       string   `json:"protocol" description:"协议类型"`
+	IsOuterService bool     `json:"is_outer_service" description:"是否开启对外服务"`
+	IsInnerService bool     `json:"is_inner_service" description:"是否开启对内服务"`
+	AccessUrls     []string `json:"access_urls" description:"访问地址列表"`
+}
+
+// ComponentEnv 组件环境变量信息
+type ComponentEnv struct {
+	AttrName  string `json:"attr_name" description:"环境变量名"`
+	AttrValue string `json:"attr_value" description:"环境变量值"`
+	Name      string `json:"name" description:"显示名称"`
+	Scope     string `json:"scope" description:"作用域"`
+	IsChange  bool   `json:"is_change" description:"是否可更改"`
+}
+
+// ComponentVolume 组件存储卷信息
+type ComponentVolume struct {
+	VolumeName     string `json:"volume_name" description:"存储卷名称"`
+	VolumePath     string `json:"volume_path" description:"挂载路径"`
+	VolumeCapacity int    `json:"volume_capacity" description:"存储容量(GB)"`
+}
+
+// ComponentDetailInfo 组件详情信息（新版本API响应）
+type ComponentDetailInfo struct {
+	ServiceID    string              `json:"service_id" description:"组件ID"`
+	ServiceCName string              `json:"service_cname" description:"组件中文名"`
+	ServiceAlias string              `json:"service_alias" description:"组件别名"`
+	UpdateTime   string              `json:"update_time" description:"更新时间"`
+	MinMemory    int                 `json:"min_memory" description:"内存配额(MB)"`
+	MinCPU       int                 `json:"min_cpu" description:"CPU配额(毫核)"`
+	StatusCN     string              `json:"status_cn" description:"状态中文"`
+	Ports        []ComponentPortInfo `json:"ports" description:"端口列表"`
+	Envs         []ComponentEnv      `json:"envs" description:"环境变量列表"`
+	Volumes      []ComponentVolume   `json:"volumes" description:"存储卷列表"`
+}
+
+// NewComponentDetailResponse 获取组件详情的响应（新版本）
+type NewComponentDetailResponse struct {
+	Code    int    `json:"code"`
+	Msg     string `json:"msg"`
+	MsgShow string `json:"msg_show"`
+	Data    struct {
+		Bean ComponentDetailInfo `json:"bean"`
+		List []interface{}       `json:"list"`
+	} `json:"data"`
+}
+
+// CreateCodeComponentRequest 基于源码创建组件的请求参数
+type CreateCodeComponentRequest struct {
+	TeamAlias    string `json:"team_alias" description:"团队名称"`
+	AppID        string `json:"app_id" description:"应用ID"`
+	ServiceCName string `json:"service_cname" description:"组件名称"`
+	RepoURL      string `json:"repo_url" description:"代码仓库地址"`
+	Branch       string `json:"branch" description:"分支名称"`
+	Username     string `json:"username,omitempty" description:"仓库用户名"`
+	Password     string `json:"password,omitempty" description:"仓库密码"`
+}
+
+type RainTokenKey struct{}

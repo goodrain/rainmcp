@@ -21,7 +21,7 @@ type Manager struct {
 }
 
 // NewManager 创建一个新的服务管理器
-func NewManager(apiURL, token string) *Manager {
+func NewManager(apiURL string) *Manager {
 	logger.Info("[Manager] 创建新的服务管理器: apiURL=%s", apiURL)
 
 	// 验证参数
@@ -30,12 +30,8 @@ func NewManager(apiURL, token string) *Manager {
 		apiURL = "https://rainbond-api.example.com" // 设置一个默认值以避免错误
 	}
 
-	if token == "" {
-		logger.Warn("[Manager] 警告: Rainbond API访问令牌为空")
-	}
-
 	logger.Info("[Manager] 创建 API 客户端...")
-	client := api.NewClient(apiURL, token)
+	client := api.NewClient(apiURL)
 
 	logger.Info("[Manager] 初始化各个服务...")
 	manager := &Manager{

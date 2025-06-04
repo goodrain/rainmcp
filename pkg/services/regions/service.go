@@ -55,7 +55,9 @@ func RegisterTools(mcpServer *server.Server, service *Service) {
 // handleRegionsList 处理获取集群列表的请求
 func (s *Service) handleRegionsList(ctx context.Context, request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
 	logger.Info("获取集群列表")
-
+	rainTokenValue := ctx.Value(models.RainTokenKey{})
+	rainToken := rainTokenValue.(string)
+	s.client.Token = rainToken
 	// 检查API客户端是否正确初始化
 	if s.client == nil {
 		logger.Error("API客户端未初始化")
@@ -65,8 +67,8 @@ func (s *Service) handleRegionsList(ctx context.Context, request *protocol.CallT
 	logger.Debug("使用API地址: %s", s.client.BaseURL)
 
 	// 调用Rainbond API获取集群列表
-	logger.Debug("调用API获取集群列表: /openapi/v1/regions")
-	resp, err := s.client.Get("/openapi/v1/regions")
+	logger.Debug("调用API获取集群列表: /openapi/v1/mcp/regions")
+	resp, err := s.client.Get("/openapi/v1/mcp/regions")
 	if err != nil {
 		logger.Error("获取集群列表失败: %v", err)
 		return nil, fmt.Errorf("获取集群列表失败: %v", err)
@@ -111,10 +113,10 @@ func (s *Service) handleRegionsList(ctx context.Context, request *protocol.CallT
 
 	// 成功解析为RegionsResponse结构体
 	var regionCount int
-	if len(regionsResp.Regions) > 0 {
-		regionCount = len(regionsResp.Regions)
+	if len(regionsResp.Data.List) > 0 {
+		regionCount = len(regionsResp.Data.List)
 	} else {
-		regionCount = len(regionsResp.Data)
+		regionCount = len(regionsResp.Data.List)
 	}
 	logger.Info("成功解析集群列表数据，共有 %d 个集群", regionCount)
 

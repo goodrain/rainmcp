@@ -2,42 +2,62 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
+	"rainmcp/pkg/models"
 	"syscall"
 	"time"
 
 	"rainmcp/pkg/logger"
 	"rainmcp/pkg/services"
-	"rainmcp/pkg/transport"
 
 	"github.com/ThinkInAIXYZ/go-mcp/protocol"
 	"github.com/ThinkInAIXYZ/go-mcp/server"
+	"github.com/ThinkInAIXYZ/go-mcp/transport"
 )
 
 func main() {
 	logger.Info("[启动] 开始启动Rainbond MCP服务器...")
 
 	// 从环境变量获取配置
-	host := getEnv("RAINBOND_HOST", "0.0.0.0:8080") // 使用0.0.0.0允许从任何IP访问，适合Docker环境
+	host := getEnv("RAINBOND_HOST", ":8080") // 使用0.0.0.0允许从任何IP访问，适合Docker环境
 	logger.Info("[配置] RAINBOND_HOST = %s", host)
 
 	rainbondAPI := getEnv("RAINBOND_API", "https://rainbond-api.example.com")
 	logger.Info("[配置] RAINBOND_API = %s", rainbondAPI)
 
-	rainbondToken := getEnv("RAINBOND_TOKEN", "")
-	tokenStatus := "未设置"
-	if rainbondToken != "" {
-		tokenStatus = "已设置"
-	}
-	logger.Info("[配置] RAINBOND_TOKEN %s", tokenStatus)
-
 	// 创建SSE服务器传输
 	logger.Info("[初始化] 创建SSE服务器传输...")
-	transportServer, err := transport.NewSSEServerTransport(host)
+	messageEndpointURL := "/message"
+	rainTokenKey := "rainbond_token"
+	paramKeysOpt := transport.WithSSEServerTransportAndHandlerOptionCopyParamKeys([]string{rainTokenKey})
+	transportServer, mcpHandler, err := transport.NewSSEServerTransportAndHandler(messageEndpointURL, paramKeysOpt)
+
 	if err != nil {
 		logger.Fatal("[错误] 创建SSE服务器传输失败: %v", err)
+	}
+	router := http.NewServeMux()
+	router.HandleFunc("/sse", mcpHandler.HandleSSE().ServeHTTP)
+	router.HandleFunc(messageEndpointURL, func(w http.ResponseWriter, r *http.Request) {
+		rainToken := r.URL.Query().Get(rainTokenKey)
+		if rainToken == "" {
+			w.Header().Set("Content-Type", "text/plain")
+			w.WriteHeader(http.StatusBadRequest)
+			if _, e := w.Write([]byte("lack rainbond_token")); e != nil {
+				fmt.Printf("writeError: %+v", e)
+			}
+			return
+		}
+		r = r.WithContext(setRainTokenToCtx(r.Context(), rainToken))
+		mcpHandler.HandleMessage().ServeHTTP(w, r)
+	})
+	httpServer := &http.Server{
+		Addr:        host,
+		Handler:     router,
+		IdleTimeout: time.Minute,
 	}
 	logger.Info("[初始化] SSE服务器传输创建成功")
 
@@ -58,7 +78,7 @@ func main() {
 
 	// 初始化服务
 	logger.Info("[初始化] 创建服务管理器...")
-	serviceManager := services.NewManager(rainbondAPI, rainbondToken)
+	serviceManager := services.NewManager(rainbondAPI)
 	logger.Info("[初始化] 服务管理器创建成功")
 
 	// 注册所有工具
@@ -73,10 +93,13 @@ func main() {
 
 	// 启动服务器
 	logger.Info("[启动] 开始启动服务器...")
+
 	go func() {
-		logger.Info("[信息] Rainbond MCP服务器启动于 http://%s", host)
-		logger.Info("[信息] SSE端点: http://%s/sse", host)
-		logger.Info("[信息] 消息端点: http://%s/message", host)
+		if err = httpServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Fatal("[错误] 服务器错误: %v\n", err)
+		}
+	}()
+	go func() {
 		logger.Info("[启动] 服务器开始运行...")
 		if err := mcpServer.Run(); err != nil && err != http.ErrServerClosed {
 			logger.Fatal("[错误] 服务器错误: %v\n", err)
@@ -131,4 +154,8 @@ func getEnv(key, defaultValue string) string {
 		return defaultValue
 	}
 	return value
+}
+
+func setRainTokenToCtx(ctx context.Context, rainToken string) context.Context {
+	return context.WithValue(ctx, models.RainTokenKey{}, rainToken)
 }

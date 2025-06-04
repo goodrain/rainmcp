@@ -58,6 +58,9 @@ func RegisterTools(mcpServer *server.Server, service *Service) {
 // handleAppsList 处理获取应用列表的请求
 func (service *Service) handleAppsList(ctx context.Context, request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
 	// 解析请求参数
+	rainTokenValue := ctx.Value(models.RainTokenKey{})
+	rainToken := rainTokenValue.(string)
+	service.client.Token = rainToken
 	req := new(models.AppsRequest)
 	if err := protocol.VerifyAndUnmarshal(request.RawArguments, req); err != nil {
 		// 记录原始错误
@@ -68,7 +71,7 @@ func (service *Service) handleAppsList(ctx context.Context, request *protocol.Ca
 		var detailedErrMsg string
 		if jsonErr := json.Unmarshal(request.RawArguments, &rawData); jsonErr == nil {
 			// 检查必填字段
-			requiredFields := []string{"tenant_name", "region_name"}
+			requiredFields := []string{"team_alias", "region_name"}
 			var missingFields []string
 
 			for _, field := range requiredFields {
@@ -91,6 +94,7 @@ func (service *Service) handleAppsList(ctx context.Context, request *protocol.Ca
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
 				&protocol.TextContent{
+					Type: "text",
 					Text: detailedErrMsg,
 				},
 			},
@@ -99,12 +103,13 @@ func (service *Service) handleAppsList(ctx context.Context, request *protocol.Ca
 	}
 
 	// 参数校验
-	if req.TeamName == "" {
-		errMsg := "缺少必填字段: tenant_name"
+	if req.TeamAlias == "" {
+		errMsg := "缺少必填字段: team_alias"
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
 				&protocol.TextContent{
+					Type: "text",
 					Text: errMsg,
 				},
 			},
@@ -118,6 +123,7 @@ func (service *Service) handleAppsList(ctx context.Context, request *protocol.Ca
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
 				&protocol.TextContent{
+					Type: "text",
 					Text: errMsg,
 				},
 			},
@@ -126,7 +132,7 @@ func (service *Service) handleAppsList(ctx context.Context, request *protocol.Ca
 	}
 
 	// 构建API路径 - 根据Rainbond OpenAPI文档
-	path := fmt.Sprintf("/openapi/v1/teams/%s/regions/%s/apps", req.TeamName, req.RegionName)
+	path := fmt.Sprintf("/openapi/v1/mcp/teams/%s/regions/%s/apps", req.TeamAlias, req.RegionName)
 
 	logger.Info("获取应用列表: %s", path)
 
@@ -138,6 +144,7 @@ func (service *Service) handleAppsList(ctx context.Context, request *protocol.Ca
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
 				&protocol.TextContent{
+					Type: "text",
 					Text: errMsg,
 				},
 			},
@@ -171,6 +178,7 @@ func (service *Service) handleAppsList(ctx context.Context, request *protocol.Ca
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
 				&protocol.TextContent{
+					Type: "text",
 					Text: string(resultJSON),
 				},
 			},
@@ -197,6 +205,7 @@ func (service *Service) handleAppsList(ctx context.Context, request *protocol.Ca
 	return &protocol.CallToolResult{
 		Content: []protocol.Content{
 			&protocol.TextContent{
+				Type: "text",
 				Text: string(resultJSON),
 			},
 		},
@@ -206,6 +215,10 @@ func (service *Service) handleAppsList(ctx context.Context, request *protocol.Ca
 // handleCreateApp 处理创建应用的请求
 func (service *Service) handleCreateApp(ctx context.Context, request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
 	// 解析请求参数
+	rainTokenValue := ctx.Value(models.RainTokenKey{})
+	rainToken := rainTokenValue.(string)
+	service.client.Token = rainToken
+
 	req := new(models.CreateAppRequest)
 	if err := protocol.VerifyAndUnmarshal(request.RawArguments, req); err != nil {
 		// 记录原始错误
@@ -239,6 +252,7 @@ func (service *Service) handleCreateApp(ctx context.Context, request *protocol.C
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
 				&protocol.TextContent{
+					Type: "text",
 					Text: detailedErrMsg,
 				},
 			},
@@ -247,12 +261,13 @@ func (service *Service) handleCreateApp(ctx context.Context, request *protocol.C
 	}
 
 	// 参数校验
-	if req.TeamName == "" {
-		errMsg := "缺少必填字段: team_name"
+	if req.TeamAlias == "" {
+		errMsg := "缺少必填字段: team_alias"
 		logger.Error(errMsg)
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
 				&protocol.TextContent{
+					Type: "text",
 					Text: errMsg,
 				},
 			},
@@ -266,6 +281,7 @@ func (service *Service) handleCreateApp(ctx context.Context, request *protocol.C
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
 				&protocol.TextContent{
+					Type: "text",
 					Text: errMsg,
 				},
 			},
@@ -279,6 +295,7 @@ func (service *Service) handleCreateApp(ctx context.Context, request *protocol.C
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
 				&protocol.TextContent{
+					Type: "text",
 					Text: errMsg,
 				},
 			},
@@ -287,7 +304,7 @@ func (service *Service) handleCreateApp(ctx context.Context, request *protocol.C
 	}
 
 	// 构建API路径 - 根据Rainbond OpenAPI文档
-	path := fmt.Sprintf("/openapi/v1/teams/%s/regions/%s/apps", req.TeamName, req.RegionName)
+	path := fmt.Sprintf("/openapi/v1/mcp/teams/%s/regions/%s/apps/create", req.TeamAlias, req.RegionName)
 
 	logger.Info("创建应用: %s, 应用名称: %s", path, req.AppName)
 
@@ -299,6 +316,7 @@ func (service *Service) handleCreateApp(ctx context.Context, request *protocol.C
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
 				&protocol.TextContent{
+					Type: "text",
 					Text: errMsg,
 				},
 			},
@@ -314,6 +332,7 @@ func (service *Service) handleCreateApp(ctx context.Context, request *protocol.C
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
 				&protocol.TextContent{
+					Type: "text",
 					Text: errMsg,
 				},
 			},
@@ -329,6 +348,7 @@ func (service *Service) handleCreateApp(ctx context.Context, request *protocol.C
 		return &protocol.CallToolResult{
 			Content: []protocol.Content{
 				&protocol.TextContent{
+					Type: "text",
 					Text: errMsg,
 				},
 			},
@@ -340,6 +360,7 @@ func (service *Service) handleCreateApp(ctx context.Context, request *protocol.C
 	return &protocol.CallToolResult{
 		Content: []protocol.Content{
 			&protocol.TextContent{
+				Type: "text",
 				Text: string(resultJSON),
 			},
 		},

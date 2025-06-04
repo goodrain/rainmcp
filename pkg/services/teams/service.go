@@ -44,9 +44,11 @@ func RegisterTools(mcpServer *server.Server, service *Service) {
 // handleTeamsList 处理获取团队列表的请求
 func (service *Service) handleTeamsList(ctx context.Context, request *protocol.CallToolRequest) (*protocol.CallToolResult, error) {
 	logger.Info("获取团队列表")
-
+	rainTokenValue := ctx.Value(models.RainTokenKey{})
+	rainToken := rainTokenValue.(string)
+	service.client.Token = rainToken
 	// 调用Rainbond API获取团队列表
-	resp, err := service.client.Get("/openapi/v1/teams")
+	resp, err := service.client.Get("/openapi/v1/mcp/teams")
 	if err != nil {
 		logger.Error("获取团队列表失败: %v", err)
 		return nil, fmt.Errorf("获取团队列表失败: %v", err)
@@ -88,7 +90,7 @@ func (service *Service) handleTeamsList(ctx context.Context, request *protocol.C
 	}
 
 	// 成功解析为TeamsResponse结构体
-	logger.Info("成功解析团队列表数据，共有 %d 个团队", len(teamsResp.Tenants))
+	logger.Info("成功解析团队列表数据，共有 %d 个团队", len(teamsResp.Data.List))
 
 	// 将结果转换为包含字段描述的JSON字符串
 	resultJSON, err := utils.MarshalJSONWithDescription(teamsResp)
